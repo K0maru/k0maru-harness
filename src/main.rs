@@ -56,6 +56,10 @@ pub enum Commands {
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         verify: bool,
 
+        /// Enforce Popperian physical falsification (new tests must fail on baseline)
+        #[arg(long)]
+        red_check: bool,
+
         /// Disable physical verification gate
         #[arg(long)]
         no_verify: bool,
@@ -273,6 +277,7 @@ fn main() {
             node,
             workspace,
             verify,
+            red_check,
             no_verify,
             json,
         } => {
@@ -282,6 +287,7 @@ fn main() {
                 domain: domain.clone(),
                 node: node.clone(),
                 verify: effective_verify,
+                red_check,
                 workspace,
                 json,
             };

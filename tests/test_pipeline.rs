@@ -11,6 +11,7 @@ fn test_run_pipeline_programmatic() {
         domain: "INT_TEST".to_string(),
         node: None,
         verify: false,
+        red_check: false,
         workspace: None,
         json: false,
     };
@@ -107,6 +108,39 @@ fn test_cli_run_human_readable() {
             "TASK_READY",
             "--domain",
             "CLI_HUMAN_TEST",
+        ])
+        .output();
+}
+
+#[test]
+fn test_cli_run_with_red_check_flag() {
+    let mut cmd = Command::cargo_bin("k0maru-harness").unwrap();
+    let assert = cmd
+        .args([
+            "run",
+            "test red check flag",
+            "--domain",
+            "CLI_RED_TEST",
+            "--red-check",
+            "--no-verify",
+            "--json",
+        ])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let parsed: PipelineResult =
+        serde_json::from_str(&stdout).expect("Failed to deserialize PipelineResult from stdout");
+    assert!(parsed.task_id.starts_with("TASK-"));
+
+    let _ = StdCommand::new("k0maru-router")
+        .args([
+            "tuple",
+            "in",
+            "--kind",
+            "TASK_READY",
+            "--domain",
+            "CLI_RED_TEST",
         ])
         .output();
 }

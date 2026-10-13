@@ -11,6 +11,7 @@ pub struct PipelineOptions {
     pub domain: String,
     pub node: Option<String>,
     pub verify: bool,
+    pub red_check: bool,
     pub workspace: Option<PathBuf>,
     pub json: bool,
 }
@@ -22,6 +23,7 @@ impl Default for PipelineOptions {
             domain: "DEFAULT".to_string(),
             node: None,
             verify: true,
+            red_check: false,
             workspace: None,
             json: false,
         }
@@ -126,6 +128,10 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
                 .arg(workspace_path)
                 .arg("--json");
 
+            if opts.red_check {
+                cmd.arg("--red-check");
+            }
+
             match cmd.output() {
                 Ok(out) => {
                     let success = out.status.success();
@@ -141,14 +147,22 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
                         let failed_tests = json
                             .pointer("/checks/tests/failed")
                             .and_then(|v| v.as_u64());
+                        let red_status = json
+                            .pointer("/checks/red_check/status")
+                            .and_then(|v| v.as_str());
+                        let red_suffix = match red_status {
+                            Some(s) => format!(", red-check: {s}"),
+                            None => String::new(),
+                        };
                         match (total_tests, failed_tests) {
                             (Some(total), Some(failed)) => format!(
-                                "Verdict: {}, tests: {}/{} passed",
+                                "Verdict: {}, tests: {}/{} passed{}",
                                 verdict,
                                 total.saturating_sub(failed),
-                                total
+                                total,
+                                red_suffix
                             ),
-                            _ => format!("Verdict: {}", verdict),
+                            _ => format!("Verdict: {}{}", verdict, red_suffix),
                         }
                     } else {
                         let txt = String::from_utf8_lossy(&out.stdout).trim().to_string();
@@ -208,6 +222,7 @@ mod tests {
             domain: "HARNESS_TEST".to_string(),
             node: None,
             verify: false,
+            red_check: false,
             workspace: None,
             json: false,
         };
