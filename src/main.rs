@@ -29,6 +29,12 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Query and activate JIT experiences and architectural invariants
+    Memory {
+        #[command(subcommand)]
+        command: MemoryCommands,
+    },
+
     /// Run a task end-to-end through the complete harness pipeline
     Run {
         /// Task description or specification
@@ -63,6 +69,28 @@ pub enum Commands {
         /// Task identifier
         #[arg(long, default_value = "e2e-self-test")]
         task_id: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum MemoryCommands {
+    /// Just-in-time invariant and memory activation for a decision point
+    Jit {
+        /// Decision point query string (e.g. 'git branching', 'sqlite lock')
+        #[arg(short, long)]
+        decision: String,
+
+        /// Maximum number of hits to retrieve
+        #[arg(short, long, default_value_t = 3)]
+        limit: usize,
+
+        /// Explicit path to SecondBrain vault root
+        #[arg(short, long)]
+        vault: Option<std::path::PathBuf>,
+
+        /// Emit machine-readable JSON output
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -176,6 +204,30 @@ fn main() {
                 println!();
             }
         }
+        Commands::Memory { command } => match command {
+            MemoryCommands::Jit {
+                decision,
+                limit,
+                vault,
+                json,
+            } => match k0maru_harness::memory::jit_activate(&decision, limit, vault.as_deref()) {
+                Ok(result) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&result)
+                                .expect("Failed to serialize JIT result")
+                        );
+                    } else {
+                        println!("{}", result.formatted_prompt);
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error activating memory: {}", err);
+                    std::process::exit(1);
+                }
+            },
+        },
         Commands::Run {
             task,
             domain,
