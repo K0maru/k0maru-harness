@@ -77,10 +77,7 @@ impl ComponentProbe {
                         } else {
                             stdout
                         };
-                        Availability::Available {
-                            version,
-                            path: p,
-                        }
+                        Availability::Available { version, path: p }
                     }
                     _ => {
                         // Fallback check: probe with --help to confirm binary is operational
