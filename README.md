@@ -24,6 +24,13 @@ Recent empirical research highlights critical vulnerabilities in contemporary AI
    *"Relevance does not imply applicability."* Statically stuffing voluminous historical memories, documentation, and rules into the initial prompt provides at best ~10% utility in step 1, while becoming 90% useless context pollution and attention distraction in subsequent steps.  
    *`k0maru-harness memory jit` queries `k0maru-agent-memory` on-demand at discrete decision points, extracting high-density invariants into a compact **<180 token** injection block, slashing token bloat while improving execution accuracy.*
 
+3. **Popperian Physical Falsification (`--red-check`) — Defeating 'Fake Green' Tests**:  
+   Inspired by Popperian scientific epistemology and autonomous testing paradigms ([Magpie](https://github.com/yetone/magpie)), agents commonly generate tautological tests or mocks that pass regardless of code correctness.  
+   *`k0maru-verifier --red-check` temporarily restores production files to baseline to verify that new tests fail on unmodified code before validating they pass on the new implementation.*
+
+4. **Dynamic Error Notebook (`LESSONS.md`) & Seen 3× Promotion**:  
+   Rather than manual documentation overhead, transient agent failure modes are recorded dynamically in `LESSONS.md`. Any empirical lesson observed **3 times** is automatically promoted to a permanent Living ADR architectural invariant.
+
 ---
 
 ## 🏛️ System Architecture: The Three-Tier Harness
@@ -149,7 +156,11 @@ k0maru-harness memory jit --decision "git branching" --limit 2 --json
 Orchestrates a complete task through pre-flight probe, JIT invariant activation, Linda space tuple emission, and physical verification:
 
 ```bash
+# Standard pipeline run
 k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV
+
+# Execute with Popperian physical falsification (rejects 'fake green' tests)
+k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV --red-check
 ```
 
 ```text

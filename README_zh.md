@@ -24,6 +24,13 @@
    **“相关性不等于适用性（Relevance $\neq$ Applicability）”**。传统做法将用户所有历史对话、庞大文档静态塞入 Prompt，实测表明历史记忆在首步仅发挥 10% 引导作用，而在随后 90% 的步骤中彻底沦为破坏模型注意力的有害上下文污染。  
    *`k0maru-harness memory jit` 在智能体到达具体决策点（如 Git 分支策略、并发锁机制、SQLite 调优）时按需即时查询长期记忆库，生成 **<180 Token** 的极低损耗约束片段，砍掉 90% 的上下文噪音，显著提升单步执行成功率。*
 
+3. **波普尔式物理证伪 (`--red-check`) —— 彻底消灭“假绿”测试**：  
+   汲取波普尔科学哲学与自主测试智能体框架（[Magpie](https://github.com/yetone/magpie)）的经验，AI 智能体常常在测试中编写恒真逻辑或过度 Mock，导致即使业务代码未实现甚至被删空，测试依然全绿（“假绿”）。  
+   *`k0maru-verifier --red-check` 在验收时，瞬态安全回滚生产代码至 Git 基线并执行新测试，物理断言测试必须在基线代码上报错失败（红色），随后恢复代码再次测试变绿，以纯物理手段证明测试的真实鉴伪能力。*
+
+4. **动态错误本 (`LESSONS.md`) 与“遇三升维 (Seen 3× Promotion)”**：  
+   摒弃人工繁重的文档编写负担，智能体的偶发踩坑与失败模式被轻量记录在知识库根目录的 `LESSONS.md` 中。凡是在实战中被记录 **3 次** 的经验，自动升维沉淀为不可违背的永久 Living ADR 架构不变量。
+
 ---
 
 ## 🏛️ 三层解耦系统架构
@@ -149,7 +156,11 @@ k0maru-harness memory jit --decision "git branching" --limit 2 --json
 将组件探活、JIT 状态激活、Linda 元组广播与物理预言机验收无感串联：
 
 ```bash
+# 标准任务流水线
 k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV
+
+# 开启波普尔式物理证伪验收（自动拦截假绿测试）
+k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV --red-check
 ```
 
 ```text
