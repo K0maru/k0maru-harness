@@ -36,6 +36,10 @@ pub struct HarnessHealthReport {
 
 pub struct ComponentProbe;
 
+pub fn find_binary(binary: &str) -> Option<PathBuf> {
+    ComponentProbe::find_binary(binary)
+}
+
 impl ComponentProbe {
     pub fn find_binary(binary: &str) -> Option<PathBuf> {
         if let Some(paths) = std::env::var_os("PATH") {
@@ -66,23 +70,34 @@ impl ComponentProbe {
             Some(p) => {
                 let ver_output = Command::new(&p).arg("--version").output();
                 match ver_output {
-                    Ok(out) => {
+                    Ok(out) if out.status.success() => {
                         let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
                         let version = if stdout.is_empty() {
-                            String::from_utf8_lossy(&out.stderr).trim().to_string()
+                            "installed".to_string()
                         } else {
                             stdout
                         };
-                        Availability::Available {
-                            version: if version.is_empty() {
-                                "unknown".to_string()
-                            } else {
-                                version
+                        Availability::Available { version, path: p }
+                    }
+                    _ => {
+                        // Fallback check: probe with --help to confirm binary is operational
+                        let help_output = Command::new(&p).arg("--help").output();
+                        match help_output {
+                            Ok(out) if out.status.success() => Availability::Available {
+                                version: "installed (operational)".to_string(),
+                                path: p,
                             },
-                            path: p,
+                            Ok(out) => {
+                                let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+                                Availability::Error(if err.is_empty() {
+                                    format!("Process exited with status {}", out.status)
+                                } else {
+                                    err
+                                })
+                            }
+                            Err(e) => Availability::Error(e.to_string()),
                         }
                     }
-                    Err(e) => Availability::Error(e.to_string()),
                 }
             }
             None => Availability::Missing,

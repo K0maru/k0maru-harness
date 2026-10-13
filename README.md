@@ -1,60 +1,68 @@
 # k0maru-harness
 
-> **Meta-Orchestrator and Universal Lifecycle Harness for K0maru Autonomous Agent Systems**
+> **Next-Generation Daemonless Meta-Orchestrator and Universal Lifecycle Harness for K0maru Autonomous Agent Systems**
+
+[English](README.md) | [简体中文](README_zh.md)
 
 [![CI](https://github.com/K0maru/k0maru-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/K0maru/k0maru-harness/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 
-`k0maru-harness` is the top-level orchestration CLI and test harness for the K0maru agent ecosystem. Following Unix philosophy and modern AI engineering principles, it coordinates independent decoupled micro-kernels without monolithic compile-time bindings.
+`k0maru-harness` is the top-level orchestration CLI and test harness for the K0maru agent ecosystem. Following Unix philosophy and empirical AI engineering research, it coordinates four independent, decoupled micro-kernels without monolithic compile-time bindings or Git submodule entanglements.
 
 ---
 
 ## 💡 Why k0maru-harness?
 
-Recent empirical research highlights critical vulnerabilities in contemporary AI agent engineering:
-1. **AgentSWE Benchmark (arXiv:2610.13361)**: Coding agents building complex agent systems frequently suffer from *Specification Drift* and *Hollow Runtimes*—producing code that appears complete on the surface but lacks true runtime execution, test coverage, or edge-case handling.
-2. **ExpActivator (arXiv:2609.33304)**: *"Relevance does not imply applicability."* Statically stuffing voluminous historical memory and docs into prompts creates severe context pollution (90% waste) and degrades single-step execution. Agents need **Just-In-Time (JIT) Experience Activation** at discrete decision points.
+Recent empirical research highlights critical vulnerabilities in contemporary AI agent architectures:
 
-`k0maru-harness` resolves these challenges by acting as the **external verifier and runtime coordinator** across the four specialized pillars:
+1. **AgentSWE Benchmark ([arXiv:2610.13361](https://arxiv.org/abs/2610.13361)) — Eradicating Hollow Runtimes**:  
+   When coding agents (Claude, GPT-4, DeepSeek) are tasked with building or refactoring agent architectures, they frequently suffer from **Specification Drift** and **Hollow Runtimes**—producing code that compiles superficially but lacks true runtime execution, test coverage, or edge-case handling, alongside falsified completion reports.  
+   *`k0maru-harness` enforces **No-Receipt-No-Merge**: only cryptographically signed execution receipts from `k0maru-verifier` (verifying exit codes, AST scope, and physical test execution) can satisfy the quality gate.*
 
-```mermaid
-flowchart TD
-    subgraph L3_Porcelain ["L3 Porcelain & Orchestration"]
-        Harness["k0maru-harness<br/>(Universal Runner & Lifecycle State Machine)"]
-    end
-
-    subgraph L2_Bus ["L2 Machine-Native Bus & Memory"]
-        TupleBus[("~/.k0maru/tuples/<br/>Linda Tuple Space")]
-        Memory["k0maru-memory<br/>(JIT Selective Activation & ADR Guard)"]
-    end
-
-    subgraph L1_Engines ["L1 Execution & Verification Engines"]
-        Router["k0maru-router<br/>(K-DSL Dispatch & Multiplexer)"]
-        Workspace["k0maru-workspace<br/>(Git Worktree & Shadow Isolation)"]
-        Verifier["k0maru-verifier<br/>(Physical Test Oracle & Receipts)"]
-    end
-
-    Harness -->|"1. Probe & Validate"| L1_Engines
-    Harness -->|"2. Prepare Shadow Isolation"| Workspace
-    Harness -->|"3. JIT Activate Context"| Memory
-    Harness -->|"4. Dispatch K-DSL / Tuple"| Router
-    Router <-->|"Coordinate Task Lifecycle"| TupleBus
-    Harness -->|"5. Gate & Sign Receipt"| Verifier
-```
+2. **ExpActivator ([arXiv:2609.33304](https://arxiv.org/abs/2609.33304)) — Just-In-Time (JIT) Experience Activation**:  
+   *"Relevance does not imply applicability."* Statically stuffing voluminous historical memories, documentation, and rules into the initial prompt provides at best ~10% utility in step 1, while becoming 90% useless context pollution and attention distraction in subsequent steps.  
+   *`k0maru-harness memory jit` queries `k0maru-agent-memory` on-demand at discrete decision points, extracting high-density invariants into a compact **<180 token** injection block, slashing token bloat while improving execution accuracy.*
 
 ---
 
-## 🏛️ Architecture & The Four Pillars
+## 🏛️ System Architecture: The Three-Tier Harness
 
-`k0maru-harness` does **NOT** compile the sub-engines into a monolithic binary, nor does it use Git Submodules. It treats each pillar as an autonomous, independently versioned micro-kernel:
+```mermaid
+flowchart TD
+    subgraph L3_Porcelain ["L3 Porcelain & Orchestration (k0maru-harness)"]
+        CLI["k0maru-harness<br/>(probe | memory jit | run | worker)"]
+    end
 
-| Pillar Engine | Role & Responsibility | Interface |
+    subgraph L2_Bus ["L2 Machine-Native Bus & Memory (~/.k0maru/)"]
+        TupleBus[("Linda Tuple Space<br/>(~/.k0maru/tuples/)")]
+        Receipts[("Receipts Ledger<br/>(~/.k0maru/receipts/)")]
+        Memory["k0maru-agent-memory<br/>(JIT Recall & Living ADR Sentinel)"]
+    end
+
+    subgraph L1_Engines ["L1 Decoupled Micro-Kernels (Plumbing Engines)"]
+        Router["k0maru-agent-router<br/>(L3/L4 Routing & K-DSL Protocol)"]
+        Workspace["k0maru-agent-workspace<br/>(L1 Git Worktree Sandboxes)"]
+        Verifier["k0maru-agent-verifier<br/>(L2 Deterministic Physical Oracle)"]
+    end
+
+    CLI -->|"1. Probe Readiness"| L1_Engines
+    CLI -->|"2. JIT Activate Invariants"| Memory
+    CLI -->|"3. Coordinate Lifecycles"| TupleBus
+    TupleBus <-->|"Consume / Emit Tuples"| Router
+    TupleBus <-->|"Provision / Teardown"| Workspace
+    CLI -->|"4. Audit & Verify"| Verifier
+    Verifier -->|"Sign SHA-256 Receipt"| Receipts
+```
+
+### The Four Pillar Engines
+
+| Pillar Engine | Role & Responsibility | Interface Mode |
 | :--- | :--- | :--- |
-| **`k0maru-agent-workspace`** | Sandbox and shadow worktree lifecycle management (`wE:pX`) | CLI / Filesystem |
-| **`k0maru-agent-memory`** | Local hybrid BM25 + ONNX embedding + JIT recall & Living ADR guard | CLI / MCP / SQLite |
-| **`k0maru-agent-router`** | Machine-native K-DSL protocol, Linda Tuple Space, Herdr/tmux routing | CLI / MCP / POSIX |
-| **`k0maru-agent-verifier`** | Physical build & test oracle, anti-fake completion receipts (`~/.k0maru/receipts/`) | CLI / Ed25519 Receipts |
+| **`k0maru-agent-router`** | Machine-native K-DSL protocol, Linda Tuple Space coordinator, and terminal multiplexer injection (`herdr`/`tmux`). | POSIX CLI / Linda Tuples |
+| **`k0maru-agent-workspace`** | Sandbox isolation and ephemeral Git worktree lifecycle manager (`wE:pX`). | POSIX CLI / Git Worktrees |
+| **`k0maru-agent-verifier`** | Deterministic physical build & test oracle, anti-fake completion receipts (`~/.k0maru/receipts/`). | POSIX CLI / SHA-256 Receipts |
+| **`k0maru-agent-memory`** | Local hybrid BM25 + ONNX embedding, JIT invariant recall, and Living ADR architectural guard. | FastMCP / POSIX CLI / SQLite |
 
 ---
 
@@ -62,7 +70,7 @@ flowchart TD
 
 ### Installation
 
-Ensure Rust 1.75+ is installed:
+Requires **Rust 1.75+**:
 
 ```bash
 git clone https://github.com/K0maru/k0maru-harness.git
@@ -71,42 +79,145 @@ cargo build --release
 cp target/release/k0maru-harness ~/.local/bin/
 ```
 
-### 1. Probe Ecosystem Readiness
+Verify installation:
+```bash
+k0maru-harness --version
+# Output: k0maru 0.1.0
+```
 
-Inspect all installed pillar binaries, version matrices, and Linda tuple space status:
+---
+
+## 🛠️ CLI Commands & Usage
+
+### 1. Ecosystem Readiness Probe (`k0maru-harness probe`)
+
+Probes all 4 decoupled micro-kernel binaries in `PATH`, verifies their versions and operational status, and audits write permissions to local Linda tuple space and receipt ledgers:
 
 ```bash
 k0maru-harness probe
 ```
 
-Output:
 ```text
-🔍 Probing K0maru Ecosystem Harness Environment...
---------------------------------------------------------------------------------
-Binary Components:
-  [OK] k0maru-router     : ~/.local/bin/k0maru-router (v0.2.1)
-  [OK] k0maru-workspace  : ~/.local/bin/k0maru-workspace (v0.6.0)
-  [OK] k0maru-verifier   : ~/.local/bin/k0maru-verifier (v0.4.0)
-  [OK] k0maru-memory     : ~/.local/bin/k0maru (v0.11.0)
+🔍 [K0maru-Harness] Component & Bus Readiness Probe
+═══════════════════════════════════════════════════════════════════
+  Timestamp: 2026-10-13T09:31:46.879454+00:00
 
-Buses & State Directories:
-  [OK] Linda Tuples      : ~/.k0maru/tuples (Active: 0 tuples)
-  [OK] Receipts Outbox   : ~/.k0maru/receipts (Recorded: 1 receipts)
---------------------------------------------------------------------------------
-✅ Ecosystem Readiness: All 4 engines installed. System is ready.
+📦 Decoupled Micro-Kernels (Pillars):
+  ✅ Router     [REQUIRED] ~/.local/bin/k0maru-router     -> k0maru-router 0.1.0
+  ✅ Workspace  [OPTIONAL] ~/.local/bin/k0maru-workspace  -> installed (operational)
+  ✅ Verifier   [OPTIONAL] ~/.local/bin/k0maru-verifier   -> k0maru-verifier 0.1.0
+  ✅ Memory     [OPTIONAL] ~/.local/bin/k0maru            -> k0maru 0.11.0
+
+🚌 Local Event & Evidence Buses:
+  📁 Linda Tuple Space            -> ~/.k0maru/tuples    [OK (Writable)]
+  📁 Execution Receipts Ledger    -> ~/.k0maru/receipts  [OK (Writable)]
+───────────────────────────────────────────────────────────────────
+🎉 Harness status: READY FOR AUTONOMOUS DISPATCH
+═══════════════════════════════════════════════════════════════════
 ```
 
-JSON output is also supported for scripting:
+Machine-readable JSON is supported for CI and subagents:
 ```bash
 k0maru-harness probe --json
 ```
 
 ---
 
-## 📜 Development & Quality Gate
+### 2. JIT Experience & Invariant Activation (`k0maru-harness memory jit`)
+
+Retrieves relevant constraints, ADR invariants, or testing guidelines for a specific decision point (e.g. `git branching`, `sqlite lock`, `api pagination`) and formats them into a compact, high-density prompt fragment (<180 tokens):
 
 ```bash
-cargo fmt --check
+k0maru-harness memory jit --decision "git branching"
+```
+
+```markdown
+### 🧠 [JIT Invariant Activation: git branching]
+- [[30_Resources/lancedb-docs/02_Core_Capabilities_and_Guides/03_branching_tagging_and_time_travel.md]] (🌿 Git 级表分支、标签与时间旅行): # 🌿 Git 级表分支、标签与时间旅行 在传统生产数据库中，对线上千万级数据集执行复杂的实验性写入...
+- [[30_Resources/lancedb-docs/01_Overview_and_Quickstart/03_lance_columnar_format_and_storage.md]] (🧬 Lance 列式存储格式规范与零拷贝演进): ...擎 | **零拷贝追加 (Zero-Copy Column Addition)** | | **就地原地更新与分支** | 写放大严重 | 支持 Row-level Delete/Merge | **Git 级表分支 (Table Branching) 与快照** | ...
+```
+
+Machine-readable structured JSON:
+```bash
+k0maru-harness memory jit --decision "git branching" --limit 2 --json
+```
+
+---
+
+### 3. Pipeline Runner (`k0maru-harness run`)
+
+Orchestrates a complete task through pre-flight probe, JIT invariant activation, Linda space tuple emission, and physical verification:
+
+```bash
+k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV
+```
+
+```text
+🚀 [K0maru-Harness] Task Pipeline Execution
+═══════════════════════════════════════════════════════════════════
+  Task ID:      TASK-20261013101439
+  Task:         Implement user authentication with JWT
+  Domain:       AUTH-SRV
+  Node:         localhost (local)
+  Workspace:    .
+
+  🔍 Phase 1: Component Readiness Probe -> [READY]
+  🧠 Phase 2: JIT Invariant Activation  -> Activated (2 lines)
+  🚌 Phase 3: Linda Space Task Ready     -> [EMITTED] (tup_ccdf3ef16ef3442190d7df5d29cf7247)
+  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 24/24 passed)
+═══════════════════════════════════════════════════════════════════
+```
+
+Machine-readable JSON output:
+```bash
+k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV --json
+```
+
+---
+
+### 4. Deterministic Pre-Commit Hook Installer (`k0maru-harness init-hook`)
+
+Installs a deterministic physical pre-commit hook into `.git/hooks/pre-commit` that blocks any commit violating code formatting or Living ADR architectural invariants, providing instant self-healing guidance:
+
+```bash
+# Install in current repository
+k0maru-harness init-hook
+
+# Install in custom repository path
+k0maru-harness init-hook --path ~/workspace/my-repo
+```
+
+---
+
+## 🤖 How to Enable Autonomous Invocations by AI Agents
+
+To ensure AI coding agents (Antigravity, Claude Code, Cursor, Windsurf) proactively call `k0maru-harness`, apply the following patterns:
+
+### 1. Invariant Contract in `AGENTS.md` / System Prompt
+Declare non-negotiable execution steps in the project's constitution:
+```markdown
+## ⚡ K0maru-Harness Invariant Rules
+1. **Decision Gate (Anti-Context Bloat)**: Before implementing architectural patterns, concurrency locks, or git flows, ALWAYS execute `k0maru-harness memory jit --decision "<topic>"` to retrieve concise JIT invariants instead of pasting large markdown docs.
+2. **Environment Preflight**: Before dispatching multi-step workflows, run `k0maru-harness probe` to verify ecosystem pillar readiness.
+3. **Hard Verification**: Never claim a task complete without `k0maru-verifier verify` generating a green cryptographic receipt.
+```
+
+### 2. FastMCP Tooling Integration
+Register `k0maru-harness` subcommands as MCP tools in `~/.gemini/antigravity-cli/mcp/` or Claude Code's `claude_desktop_config.json`:
+- `k0maru_harness_probe`: Run readiness probe.
+- `k0maru_harness_jit`: Retrieve JIT invariants for a decision point.
+
+### 3. Antigravity Skill Binding
+Leverage the built-in `k0maru-harness` skill (`~/.gemini/config/skills/k0maru-harness/SKILL.md`) which instructs agents on end-to-end task lifecycles, Linda tuple claiming, and physical verification gates.
+
+---
+
+## 📐 Quality Gates
+
+All commits and PRs must satisfy the zero-tolerance quality baseline:
+
+```bash
+cargo fmt --all --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 k0maru guard check --diff
