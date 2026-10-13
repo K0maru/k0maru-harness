@@ -5,9 +5,12 @@ use crate::error::HarnessError;
 pub const PRE_COMMIT_HOOK_CONTENT: &str = r#"#!/usr/bin/env bash
 set -euo pipefail
 echo "🛡️  [K0maru-Harness] Running pre-commit physical gate..."
-if ! cargo fmt --all --check >/dev/null 2>&1; then
-    echo "❌ [Pre-Commit Denied]: Rust code formatting failed! Run 'cargo fmt'." >&2
-    exit 1
+# 1. Format check (Rust repositories only)
+if [ -f "Cargo.toml" ]; then
+    if ! cargo fmt --all --check >/dev/null 2>&1; then
+        echo "❌ [Pre-Commit Denied]: Rust code formatting failed! Run 'cargo fmt'." >&2
+        exit 1
+    fi
 fi
 if command -v k0maru >/dev/null 2>&1; then
     if ! k0maru guard check --diff >/dev/null 2>&1; then
