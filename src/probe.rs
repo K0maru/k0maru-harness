@@ -36,6 +36,10 @@ pub struct HarnessHealthReport {
 
 pub struct ComponentProbe;
 
+pub fn find_binary(binary: &str) -> Option<PathBuf> {
+    ComponentProbe::find_binary(binary)
+}
+
 impl ComponentProbe {
     pub fn find_binary(binary: &str) -> Option<PathBuf> {
         if let Some(paths) = std::env::var_os("PATH") {

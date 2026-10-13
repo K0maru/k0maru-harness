@@ -16,4 +16,7 @@ pub enum HarnessError {
 
     #[error("Verification failed with exit code: {0}")]
     VerificationFailed(i32),
+
+    #[error("Memory error: {0}")]
+    MemoryError(String),
 }
