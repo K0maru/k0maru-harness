@@ -1,0 +1,232 @@
+use clap::{Parser, Subcommand};
+use colored::*;
+use k0maru_harness::probe::{Availability, ComponentProbe};
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "k0maru",
+    author = "K0maru Team",
+    version,
+    about = "Next-Generation Daemonless Meta-Harness & Orchestrator for Decoupled Agent Pillars",
+    long_about = "A unified, daemonless Meta-Harness coordinating task execution across decoupled Unix pillars:\n\
+                  • k0maru-agent-router    (L3/L4 Routing & Linda Tuple Space)\n\
+                  • k0maru-agent-workspace (L1 Git Worktree Ephemeral Sandboxes)\n\
+                  • k0maru-agent-verifier  (L2 Deterministic Physical Oracle)\n\
+                  • k0maru-agent-memory    (L0 Cognitive Hub & Living ADR Guard)"
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Probe the availability, versions, and paths of the 4 harness pillars and Linda total bus
+    #[command(alias = "doctor", alias = "probe")]
+    Check {
+        /// Emit machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Run a task end-to-end through the complete harness pipeline
+    Run {
+        /// Task description or specification
+        task: String,
+
+        /// Target domain identifier (e.g. ROUTER, AUTH-SRV)
+        #[arg(short, long, default_value = "DEFAULT")]
+        domain: String,
+
+        /// Optional remote node hostname over Tailscale (e.g. company-pc)
+        #[arg(long)]
+        node: Option<String>,
+
+        /// Run deterministic physical verification gate
+        #[arg(long, default_value_t = true)]
+        verify: bool,
+    },
+
+    /// Start a reactive worker loop listening on Linda Tuple Space
+    Worker {
+        /// Target domain to consume tasks for
+        #[arg(short, long)]
+        domain: String,
+
+        /// Process a single task and exit
+        #[arg(long)]
+        once: bool,
+    },
+
+    /// Run end-to-end integration self-test
+    E2e {
+        /// Task identifier
+        #[arg(long, default_value = "e2e-self-test")]
+        task_id: String,
+    },
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Check { json } => {
+            let report = ComponentProbe::run_full_probe();
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            } else {
+                println!();
+                println!(
+                    "{}",
+                    "🔍 [K0maru-Harness] Component & Bus Readiness Probe"
+                        .bold()
+                        .cyan()
+                );
+                println!(
+                    "{}",
+                    "═══════════════════════════════════════════════════════════════════".cyan()
+                );
+                println!("  Timestamp: {}", report.timestamp);
+                println!();
+                println!("{}", "📦 Decoupled Micro-Kernels (Pillars):".bold());
+
+                for c in &report.components {
+                    let req_badge = if c.required {
+                        "[REQUIRED]".red()
+                    } else {
+                        "[OPTIONAL]".dimmed()
+                    };
+
+                    match &c.availability {
+                        Availability::Available { version, path } => {
+                            println!(
+                                "  ✅ {:<10} {:<10} {:<30} -> {}",
+                                c.name.green().bold(),
+                                req_badge,
+                                path.display().to_string().dimmed(),
+                                version.cyan()
+                            );
+                        }
+                        Availability::Missing => {
+                            let mark = if c.required {
+                                "❌".red()
+                            } else {
+                                "⚠️ ".yellow()
+                            };
+                            println!(
+                                "  {} {:<10} {:<10} (Binary '{}' not found in PATH or ~/.local/bin)",
+                                mark,
+                                c.name.yellow().bold(),
+                                req_badge,
+                                c.binary
+                            );
+                        }
+                        Availability::Error(err) => {
+                            println!(
+                                "  ❌ {:<10} {:<10} Error: {}",
+                                c.name.red().bold(),
+                                req_badge,
+                                err
+                            );
+                        }
+                    }
+                }
+
+                println!();
+                println!("{}", "🚌 Local Event & Evidence Buses:".bold());
+                for b in &report.buses {
+                    let status = if b.exists && b.writable {
+                        "OK (Writable)".green()
+                    } else if b.exists {
+                        "RO (Read-Only)".yellow()
+                    } else {
+                        "MISSING".red()
+                    };
+                    println!(
+                        "  📁 {:<28} -> {:<32} [{}]",
+                        b.name.cyan(),
+                        b.path.display().to_string().dimmed(),
+                        status
+                    );
+                }
+
+                println!(
+                    "{}",
+                    "───────────────────────────────────────────────────────────────────".cyan()
+                );
+                if report.ready {
+                    println!(
+                        "{}",
+                        "🎉 Harness status: READY FOR AUTONOMOUS DISPATCH"
+                            .green()
+                            .bold()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        "⚠️  Harness status: DEGRADED / MISSING REQUIRED PILLARS"
+                            .yellow()
+                            .bold()
+                    );
+                }
+                println!(
+                    "{}",
+                    "═══════════════════════════════════════════════════════════════════".cyan()
+                );
+                println!();
+            }
+        }
+        Commands::Run {
+            task,
+            domain,
+            node,
+            verify,
+        } => {
+            println!(
+                "{}",
+                "🚀 [K0maru-Harness] Task Pipeline Runner".bold().cyan()
+            );
+            println!("  Task:     {}", task.bold());
+            println!("  Domain:   {}", domain);
+            println!(
+                "  Node:     {}",
+                node.as_deref().unwrap_or("localhost (local)")
+            );
+            println!("  Verify:   {}", verify);
+            println!();
+            println!("{}", "ℹ️  Phase 1 active: Component probe validated. Full execution stream arriving in Phase 2.".yellow());
+        }
+        Commands::Worker { domain, once } => {
+            println!(
+                "{}",
+                "👷 [K0maru-Harness] Autonomous Worker Loop".bold().cyan()
+            );
+            println!("  Domain:   {}", domain);
+            println!("  Once:     {}", once);
+            println!();
+            println!(
+                "{}",
+                "ℹ️  Phase 1 active: Reactive claiming engine ready in k0maru-router.".yellow()
+            );
+        }
+        Commands::E2e { task_id } => {
+            println!(
+                "{}",
+                "🧪 [K0maru-Harness] E2E Pipeline Verification"
+                    .bold()
+                    .cyan()
+            );
+            println!("  Task ID:  {}", task_id);
+            let report = ComponentProbe::run_full_probe();
+            if report.ready {
+                println!(
+                    "{}",
+                    "✅ All components ready for E2E orchestration.".green()
+                );
+            } else {
+                eprintln!("{}", "❌ Harness components not fully ready.".red());
+                std::process::exit(1);
+            }
+        }
+    }
+}
