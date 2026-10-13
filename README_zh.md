@@ -144,14 +144,47 @@ k0maru-harness memory jit --decision "git branching" --limit 2 --json
 
 ---
 
-### 3. 一键式任务流水线与自治 Worker 循环 (Phase 3 & 4)
+### 3. 一键式任务编排流水线 (`k0maru-harness run`)
+
+将组件探活、JIT 状态激活、Linda 元组广播与物理预言机验收无感串联：
 
 ```bash
-# 执行端到端自主任务流水线 (沙箱隔离 ➔ 决策激活 ➔ Agent 编码 ➔ 物理验收)
-k0maru-harness run "重构认证中间件 Token 逻辑" --domain AUTH-SRV --verify
+k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV
+```
 
-# 启动反应式自治 Worker 循环，抢占 Linda 空间工单
-k0maru-harness worker --domain HARNESS --once
+```text
+🚀 [K0maru-Harness] Task Pipeline Execution
+═══════════════════════════════════════════════════════════════════
+  Task ID:      TASK-20261013101439
+  Task:         实现 JWT 用户鉴权逻辑
+  Domain:       AUTH-SRV
+  Node:         localhost (local)
+  Workspace:    .
+
+  🔍 Phase 1: Component Readiness Probe -> [READY]
+  🧠 Phase 2: JIT Invariant Activation  -> Activated (2 lines)
+  🚌 Phase 3: Linda Space Task Ready     -> [EMITTED] (tup_ccdf3ef16ef3442190d7df5d29cf7247)
+  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 24/24 passed)
+═══════════════════════════════════════════════════════════════════
+```
+
+支持机器可读的 JSON 结构化输出：
+```bash
+k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV --json
+```
+
+---
+
+### 4. 确定性物理 Pre-Commit 门禁安装器 (`k0maru-harness init-hook`)
+
+一键在目标 Git 仓库安装 `.git/hooks/pre-commit` 脚本，在提交代码时强制进行 Rust 格式化与 Living ADR 架构不变量校验，拒绝违规提交并提供自愈修复指引：
+
+```bash
+# 在当前仓库安装
+k0maru-harness init-hook
+
+# 在指定目录仓库安装
+k0maru-harness init-hook --path ~/workspace/my-repo
 ```
 
 ---

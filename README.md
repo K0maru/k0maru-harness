@@ -144,14 +144,47 @@ k0maru-harness memory jit --decision "git branching" --limit 2 --json
 
 ---
 
-### 3. Pipeline Runner & Worker Loop (Phases 3 & 4)
+### 3. Pipeline Runner (`k0maru-harness run`)
+
+Orchestrates a complete task through pre-flight probe, JIT invariant activation, Linda space tuple emission, and physical verification:
 
 ```bash
-# Run a task end-to-end through sandbox provisioning, dispatch, and physical verification
-k0maru-harness run "Refactor auth token expiration" --domain AUTH-SRV --verify
+k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV
+```
 
-# Start an autonomous worker loop claiming TASK_READY tuples from Linda space
-k0maru-harness worker --domain HARNESS --once
+```text
+🚀 [K0maru-Harness] Task Pipeline Execution
+═══════════════════════════════════════════════════════════════════
+  Task ID:      TASK-20261013101439
+  Task:         Implement user authentication with JWT
+  Domain:       AUTH-SRV
+  Node:         localhost (local)
+  Workspace:    .
+
+  🔍 Phase 1: Component Readiness Probe -> [READY]
+  🧠 Phase 2: JIT Invariant Activation  -> Activated (2 lines)
+  🚌 Phase 3: Linda Space Task Ready     -> [EMITTED] (tup_ccdf3ef16ef3442190d7df5d29cf7247)
+  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 24/24 passed)
+═══════════════════════════════════════════════════════════════════
+```
+
+Machine-readable JSON output:
+```bash
+k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV --json
+```
+
+---
+
+### 4. Deterministic Pre-Commit Hook Installer (`k0maru-harness init-hook`)
+
+Installs a deterministic physical pre-commit hook into `.git/hooks/pre-commit` that blocks any commit violating code formatting or Living ADR architectural invariants, providing instant self-healing guidance:
+
+```bash
+# Install in current repository
+k0maru-harness init-hook
+
+# Install in custom repository path
+k0maru-harness init-hook --path ~/workspace/my-repo
 ```
 
 ---
