@@ -14,6 +14,7 @@ fn test_run_pipeline_programmatic() {
         red_check: false,
         workspace: None,
         exec_cmd: None,
+        vault: None,
         json: false,
     };
 
@@ -50,6 +51,7 @@ fn test_run_pipeline_with_exec_cmd_integration() {
         red_check: false,
         workspace: None,
         exec_cmd: Some("echo hello".to_string()),
+        vault: None,
         json: false,
     };
 
@@ -192,6 +194,7 @@ fn test_pre_stdout_log_sink_and_format_wire_summary() {
         red_check: false,
         workspace: None,
         exec_cmd: Some("echo hello-pre-stdout-sink".to_string()),
+        vault: None,
         json: false,
     };
 
@@ -299,4 +302,59 @@ fn test_cli_run_wire_flag() {
             "CLI_WIRE_TEST",
         ])
         .output();
+}
+
+#[test]
+fn test_pipeline_failure_auto_records_lesson_and_promotes_at_3x() {
+    let temp_vault = tempfile::tempdir().expect("Failed to create temp vault");
+    let opts = PipelineOptions {
+        task: "failing exec task for auto lesson".to_string(),
+        domain: "TICK_006_AUTO_LESSON".to_string(),
+        node: None,
+        verify: false,
+        red_check: false,
+        workspace: None,
+        exec_cmd: Some("false".to_string()),
+        vault: Some(temp_vault.path().to_path_buf()),
+        json: false,
+    };
+
+    let res1 = run_pipeline(&opts).expect("1st pipeline run should return Ok");
+    assert_eq!(res1.exec_passed, Some(false));
+    assert_eq!(
+        res1.lesson_recorded,
+        Some("Seen_1x(promoted:false)".to_string())
+    );
+
+    let res2 = run_pipeline(&opts).expect("2nd pipeline run should return Ok");
+    assert_eq!(
+        res2.lesson_recorded,
+        Some("Seen_2x(promoted:false)".to_string())
+    );
+
+    let res3 = run_pipeline(&opts).expect("3rd pipeline run should return Ok");
+    assert_eq!(
+        res3.lesson_recorded,
+        Some("Seen_3x(promoted:true)".to_string())
+    );
+    let wire3 = k0maru_harness::pipeline::format_wire_summary(&res3);
+    assert!(wire3.ends_with("|lesson:Seen_3x(promoted:true)"));
+
+    let lessons_md = std::fs::read_to_string(temp_vault.path().join("LESSONS.md"))
+        .expect("LESSONS.md must exist in temp vault");
+    assert!(lessons_md.contains("Seen 3×"));
+    assert!(lessons_md.contains("**[PROMOTED TO LIVING ADR]**"));
+
+    for _ in 0..3 {
+        let _ = StdCommand::new("k0maru-router")
+            .args([
+                "tuple",
+                "in",
+                "--kind",
+                "TASK_READY",
+                "--domain",
+                "TICK_006_AUTO_LESSON",
+            ])
+            .output();
+    }
 }
