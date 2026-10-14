@@ -4,7 +4,7 @@ use k0maru_harness::probe::{Availability, ComponentProbe};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "k0maru",
+    name = "k0maru-harness",
     author = "K0maru Team",
     version,
     about = "Next-Generation Daemonless Meta-Harness & Orchestrator for Decoupled Agent Pillars",
@@ -51,6 +51,10 @@ pub enum Commands {
         /// Target workspace directory (defaults to current directory)
         #[arg(short, long)]
         workspace: Option<std::path::PathBuf>,
+
+        /// Optional shell command to execute in workspace with JIT invariants injected
+        #[arg(short, long)]
+        exec: Option<String>,
 
         /// Run deterministic physical verification gate
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
@@ -107,6 +111,29 @@ pub enum MemoryCommands {
         /// Maximum number of hits to retrieve
         #[arg(short, long, default_value_t = 3)]
         limit: usize,
+
+        /// Explicit path to SecondBrain vault root
+        #[arg(short, long)]
+        vault: Option<std::path::PathBuf>,
+
+        /// Emit machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Record an operational lesson in LESSONS.md and advance Seen-3x state machine
+    RecordLesson {
+        /// Lesson title or anti-pattern summary
+        #[arg(short, long)]
+        title: String,
+
+        /// Incident description and root cause
+        #[arg(short, long)]
+        cause: String,
+
+        /// Standard for doing it right (Done right)
+        #[arg(short, long)]
+        standard: String,
 
         /// Explicit path to SecondBrain vault root
         #[arg(short, long)]
@@ -251,6 +278,44 @@ fn main() {
                     std::process::exit(1);
                 }
             },
+            MemoryCommands::RecordLesson {
+                title,
+                cause,
+                standard,
+                vault,
+                json,
+            } => match k0maru_harness::memory::record_lesson(
+                vault.as_deref(),
+                &title,
+                &cause,
+                &standard,
+            ) {
+                Ok(result) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&result)
+                                .expect("Failed to serialize LessonRecordResult")
+                        );
+                    } else {
+                        let status_badge = if result.promoted {
+                            "PROMOTED TO LIVING ADR (Seen 3×+)".green().bold()
+                        } else {
+                            format!("RECORDED (Seen {}×)", result.count).cyan().bold()
+                        };
+                        println!(
+                            "✅ [K0maru-Harness] Lesson '{}' -> {} at {}",
+                            result.title,
+                            status_badge,
+                            result.lessons_path.display()
+                        );
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error recording lesson: {}", err);
+                    std::process::exit(1);
+                }
+            },
         },
         Commands::InitHook { path } => {
             match k0maru_harness::hook::install_pre_commit_hook(path.as_deref()) {
@@ -276,6 +341,7 @@ fn main() {
             domain,
             node,
             workspace,
+            exec,
             verify,
             red_check,
             no_verify,
@@ -289,6 +355,7 @@ fn main() {
                 verify: effective_verify,
                 red_check,
                 workspace,
+                exec_cmd: exec,
                 json,
             };
 
@@ -355,6 +422,20 @@ fn main() {
                             );
                         }
 
+                        if let Some(exec_ok) = res.exec_passed {
+                            if exec_ok {
+                                println!(
+                                    "  ⚙️  Phase 3.5: Task Command Execution   -> [{}]",
+                                    "PASSED".green().bold()
+                                );
+                            } else {
+                                println!(
+                                    "  ⚙️  Phase 3.5: Task Command Execution   -> [{}]",
+                                    "FAILED".red().bold()
+                                );
+                            }
+                        }
+
                         if effective_verify {
                             if res.verified {
                                 let summary = res.receipt_summary.as_deref().unwrap_or("Passed");
@@ -378,12 +459,24 @@ fn main() {
                             );
                         }
 
+                        if res.tuple_settled {
+                            println!(
+                                "  🏁 Phase 5: Linda Space Settlement    -> [{}]",
+                                "SETTLED (TASK_COMPLETED)".green().bold()
+                            );
+                        }
+
                         println!(
                             "{}",
                             "═══════════════════════════════════════════════════════════════════"
                                 .cyan()
                         );
                         println!();
+
+                        if res.exec_passed == Some(false) {
+                            eprintln!("{}", "❌ Task command execution failed!".red().bold());
+                            std::process::exit(1);
+                        }
 
                         if effective_verify && !res.verified {
                             eprintln!("{}", "❌ Physical verification gate failed!".red().bold());
@@ -405,10 +498,78 @@ fn main() {
             println!("  Domain:   {}", domain);
             println!("  Once:     {}", once);
             println!();
-            println!(
-                "{}",
-                "ℹ️  Phase 1 active: Reactive claiming engine ready in k0maru-router.".yellow()
-            );
+
+            let Some(router_bin) = k0maru_harness::probe::find_binary("k0maru-router") else {
+                eprintln!(
+                    "{}",
+                    "❌ Required binary 'k0maru-router' not found in PATH or ~/.local/bin".red()
+                );
+                std::process::exit(1);
+            };
+
+            if once {
+                let output = std::process::Command::new(&router_bin)
+                    .args([
+                        "tuple",
+                        "in",
+                        "--kind",
+                        "TASK_READY",
+                        "--domain",
+                        &domain,
+                        "--json",
+                    ])
+                    .output();
+
+                match output {
+                    Ok(out) if out.status.success() => {
+                        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                        if stdout.is_empty() || stdout == "null" {
+                            println!(
+                                "{}",
+                                format!(
+                                    "ℹ️  No TASK_READY tuple available in domain '{}'.",
+                                    domain
+                                )
+                                .yellow()
+                            );
+                        } else {
+                            println!(
+                                "{} Claimed tuple in domain '{}':\n{}",
+                                "✅".green(),
+                                domain.bold(),
+                                stdout
+                            );
+                        }
+                    }
+                    Ok(out) => {
+                        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+                        println!(
+                            "{}",
+                            format!(
+                                "ℹ️  No TASK_READY tuple claimed in domain '{}' ({})",
+                                domain, stderr
+                            )
+                            .yellow()
+                        );
+                    }
+                    Err(err) => {
+                        eprintln!("❌ Failed to invoke k0maru-router tuple in: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let status = std::process::Command::new(&router_bin)
+                    .args(["worker", "--domain", &domain])
+                    .status();
+                match status {
+                    Ok(s) if s.success() => {}
+                    Ok(s) => std::process::exit(s.code().unwrap_or(1)),
+                    Err(err) => {
+                        eprintln!("❌ Failed to execute k0maru-router worker: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+            }
         }
         Commands::E2e { task_id } => {
             println!(
@@ -418,15 +579,68 @@ fn main() {
                     .cyan()
             );
             println!("  Task ID:  {}", task_id);
-            let report = ComponentProbe::run_full_probe();
-            if report.ready {
-                println!(
-                    "{}",
-                    "✅ All components ready for E2E orchestration.".green()
-                );
-            } else {
-                eprintln!("{}", "❌ Harness components not fully ready.".red());
-                std::process::exit(1);
+
+            let opts = k0maru_harness::pipeline::PipelineOptions {
+                task: format!("E2E self-test ({})", task_id),
+                domain: "E2E_SELF_TEST".to_string(),
+                node: None,
+                verify: false,
+                red_check: false,
+                workspace: None,
+                exec_cmd: Some("echo e2e-self-test-ok".to_string()),
+                json: false,
+            };
+
+            match k0maru_harness::pipeline::run_pipeline(&opts) {
+                Ok(res) => {
+                    // Clean up the emitted TASK_READY tuple via tuple in roundtrip
+                    let mut tuple_roundtrip_ok = false;
+                    if res.tuple_id.is_some() {
+                        if let Some(router_bin) =
+                            k0maru_harness::probe::find_binary("k0maru-router")
+                        {
+                            if let Ok(out) = std::process::Command::new(&router_bin)
+                                .args([
+                                    "tuple",
+                                    "in",
+                                    "--kind",
+                                    "TASK_READY",
+                                    "--domain",
+                                    "E2E_SELF_TEST",
+                                    "--json",
+                                ])
+                                .output()
+                            {
+                                tuple_roundtrip_ok = out.status.success();
+                            }
+                        }
+                    }
+
+                    println!(
+                        "  Probe Ready:     {}",
+                        if res.probe_passed { "YES" } else { "NO" }
+                    );
+                    println!(
+                        "  JIT Activated:   {} lines",
+                        res.jit_invariants.lines().count()
+                    );
+                    println!("  Exec Passed:     {}", res.exec_passed == Some(true));
+                    println!("  Tuple Roundtrip: {}", tuple_roundtrip_ok);
+
+                    if res.probe_passed && res.exec_passed == Some(true) {
+                        println!(
+                            "{}",
+                            "✅ E2E self-test pipeline executed and verified successfully.".green()
+                        );
+                    } else {
+                        eprintln!("{}", "❌ E2E self-test pipeline failed.".red());
+                        std::process::exit(1);
+                    }
+                }
+                Err(err) => {
+                    eprintln!("❌ E2E self-test failed: {}", err);
+                    std::process::exit(1);
+                }
             }
         }
     }

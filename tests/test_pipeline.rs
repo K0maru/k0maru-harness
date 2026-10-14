@@ -13,13 +13,16 @@ fn test_run_pipeline_programmatic() {
         verify: false,
         red_check: false,
         workspace: None,
+        exec_cmd: None,
         json: false,
     };
 
     let res = run_pipeline(&opts).expect("run_pipeline should succeed");
     assert!(res.task_id.starts_with("TASK-"));
     assert!(res.jit_invariants.contains("JIT Invariant Activation"));
+    assert_eq!(res.exec_passed, None);
     assert!(!res.verified);
+    assert!(!res.tuple_settled);
     assert_eq!(res.receipt_summary, None);
 
     // If router emitted a tuple, clean it up
@@ -38,6 +41,37 @@ fn test_run_pipeline_programmatic() {
 }
 
 #[test]
+fn test_run_pipeline_with_exec_cmd_integration() {
+    let opts = PipelineOptions {
+        task: "integration test exec command".to_string(),
+        domain: "INT_EXEC_TEST".to_string(),
+        node: None,
+        verify: false,
+        red_check: false,
+        workspace: None,
+        exec_cmd: Some("echo hello".to_string()),
+        json: false,
+    };
+
+    let res = run_pipeline(&opts).expect("run_pipeline with exec_cmd should succeed");
+    assert_eq!(res.exec_passed, Some(true));
+    assert!(!res.verified);
+
+    if res.tuple_id.is_some() {
+        let _ = StdCommand::new("k0maru-router")
+            .args([
+                "tuple",
+                "in",
+                "--kind",
+                "TASK_READY",
+                "--domain",
+                "INT_EXEC_TEST",
+            ])
+            .output();
+    }
+}
+
+#[test]
 fn test_cli_run_json_output() {
     let mut cmd = Command::cargo_bin("k0maru-harness").unwrap();
     let assert = cmd
@@ -46,6 +80,8 @@ fn test_cli_run_json_output() {
             "cli json test task",
             "--domain",
             "CLI_JSON_TEST",
+            "--exec",
+            "echo hello",
             "--no-verify",
             "--json",
         ])
@@ -60,6 +96,7 @@ fn test_cli_run_json_output() {
     assert!(parsed
         .jit_invariants
         .contains("JIT Invariant Activation: cli json test task"));
+    assert_eq!(parsed.exec_passed, Some(true));
     assert!(!parsed.verified);
 
     // Clean up emitted tuple if present
