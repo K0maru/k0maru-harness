@@ -71,6 +71,20 @@ pub enum Commands {
         /// Emit machine-readable JSON output
         #[arg(long)]
         json: bool,
+
+        /// Emit compact single-line K-DSL wire summary (!Σ:PIPELINE|...)
+        #[arg(long)]
+        wire: bool,
+    },
+
+    /// Inspect a physical verification receipt and emit compact K-DSL wire summary
+    Receipt {
+        /// Task identifier (e.g. TICK-005)
+        task_id: String,
+
+        /// Optional directory override for receipts (defaults to ~/.k0maru/receipts)
+        #[arg(long)]
+        dir: Option<std::path::PathBuf>,
     },
 
     /// Install pre-commit physical gate hook into git repository
@@ -346,6 +360,7 @@ fn main() {
             red_check,
             no_verify,
             json,
+            wire,
         } => {
             let effective_verify = verify && !no_verify;
             let opts = k0maru_harness::pipeline::PipelineOptions {
@@ -361,131 +376,87 @@ fn main() {
 
             match k0maru_harness::pipeline::run_pipeline(&opts) {
                 Ok(res) => {
-                    if json {
+                    let wire_line = k0maru_harness::pipeline::format_wire_summary(&res);
+                    if wire {
+                        println!("{}", wire_line);
+                    } else if json {
                         println!(
                             "{}",
                             serde_json::to_string_pretty(&res)
                                 .expect("Failed to serialize PipelineResult")
                         );
                     } else {
-                        println!();
-                        println!(
-                            "{}",
-                            "🚀 [K0maru-Harness] Task Pipeline Execution".bold().cyan()
-                        );
-                        println!(
-                            "{}",
-                            "═══════════════════════════════════════════════════════════════════"
-                                .cyan()
-                        );
-                        println!("  Task ID:      {}", res.task_id.bold());
-                        println!("  Task:         {}", task);
-                        println!("  Domain:       {}", domain);
-                        println!(
-                            "  Node:         {}",
-                            node.as_deref().unwrap_or("localhost (local)")
-                        );
-                        println!(
-                            "  Workspace:    {}",
-                            opts.workspace
-                                .as_deref()
-                                .map(|p| p.display().to_string())
-                                .unwrap_or_else(|| ".".to_string())
-                        );
-                        println!();
-
                         let probe_badge = if res.probe_passed {
                             "READY".green().bold()
                         } else {
                             "DEGRADED".yellow().bold()
                         };
+                        let tuple_badge = res
+                            .tuple_id
+                            .as_deref()
+                            .map(|t| format!("EMITTED ({})", t))
+                            .unwrap_or_else(|| "SKIPPED".to_string());
+                        let exec_badge = match res.exec_passed {
+                            Some(true) => "PASS",
+                            Some(false) => "FAIL",
+                            None => "SKIP",
+                        };
+                        let (verify_badge, verify_detail) = if effective_verify {
+                            if res.verified {
+                                (
+                                    "VERIFIED".green().bold(),
+                                    res.receipt_summary.as_deref().unwrap_or("Passed"),
+                                )
+                            } else {
+                                (
+                                    "FAILED".red().bold(),
+                                    res.receipt_summary.as_deref().unwrap_or("Failed"),
+                                )
+                            }
+                        } else {
+                            ("DISABLED".dimmed(), "--no-verify")
+                        };
+
+                        println!(
+                            "{} ({} | {})",
+                            "🚀 [K0maru-Harness] Task Pipeline Execution".bold().cyan(),
+                            res.task_id.bold(),
+                            domain
+                        );
                         println!(
                             "  🔍 Phase 1: Component Readiness Probe -> [{}]",
                             probe_badge
                         );
-
                         println!(
                             "  🧠 Phase 2: JIT Invariant Activation  -> Activated ({} lines)",
                             res.jit_invariants.lines().count()
                         );
-
-                        if let Some(tup) = &res.tuple_id {
-                            println!(
-                                "  🚌 Phase 3: Linda Space Task Ready     -> [{}] ({})",
-                                "EMITTED".green().bold(),
-                                tup.cyan()
-                            );
-                        } else {
-                            println!(
-                                "  🚌 Phase 3: Linda Space Task Ready     -> [{}]",
-                                "SKIPPED / ROUTER OFFLINE".dimmed()
-                            );
-                        }
-
-                        if let Some(exec_ok) = res.exec_passed {
-                            if exec_ok {
-                                println!(
-                                    "  ⚙️  Phase 3.5: Task Command Execution   -> [{}]",
-                                    "PASSED".green().bold()
-                                );
-                            } else {
-                                println!(
-                                    "  ⚙️  Phase 3.5: Task Command Execution   -> [{}]",
-                                    "FAILED".red().bold()
-                                );
-                            }
-                        }
-
-                        if effective_verify {
-                            if res.verified {
-                                let summary = res.receipt_summary.as_deref().unwrap_or("Passed");
-                                println!(
-                                    "  🛡️  Phase 4: Physical Verification     -> [{}] ({})",
-                                    "VERIFIED".green().bold(),
-                                    summary
-                                );
-                            } else {
-                                let summary = res.receipt_summary.as_deref().unwrap_or("Failed");
-                                println!(
-                                    "  🛡️  Phase 4: Physical Verification     -> [{}] ({})",
-                                    "FAILED".red().bold(),
-                                    summary
-                                );
-                            }
-                        } else {
-                            println!(
-                                "  🛡️  Phase 4: Physical Verification     -> [{}]",
-                                "DISABLED (--no-verify)".dimmed()
-                            );
-                        }
-
-                        if res.tuple_settled {
-                            println!(
-                                "  🏁 Phase 5: Linda Space Settlement    -> [{}]",
-                                "SETTLED (TASK_COMPLETED)".green().bold()
-                            );
-                        }
-
                         println!(
-                            "{}",
-                            "═══════════════════════════════════════════════════════════════════"
-                                .cyan()
+                            "  🚌 Phase 3: Linda Space Task Ready     -> [{}] (exec: {})",
+                            tuple_badge, exec_badge
                         );
-                        println!();
+                        println!(
+                            "  🛡️  Phase 4: Physical Verification     -> [{}] ({})",
+                            verify_badge, verify_detail
+                        );
+                        println!("{}", wire_line);
+                    }
 
-                        if res.exec_passed == Some(false) {
-                            eprintln!("{}", "❌ Task command execution failed!".red().bold());
-                            std::process::exit(1);
-                        }
-
-                        if effective_verify && !res.verified {
-                            eprintln!("{}", "❌ Physical verification gate failed!".red().bold());
-                            std::process::exit(1);
-                        }
+                    if res.exec_passed == Some(false) || (effective_verify && !res.verified) {
+                        std::process::exit(1);
                     }
                 }
                 Err(err) => {
                     eprintln!("Error executing pipeline: {}", err);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Receipt { task_id, dir } => {
+            match k0maru_harness::pipeline::inspect_receipt_wire(&task_id, dir.as_deref()) {
+                Ok(wire) => println!("{}", wire),
+                Err(err) => {
+                    eprintln!("Error inspecting receipt '{}': {}", task_id, err);
                     std::process::exit(1);
                 }
             }

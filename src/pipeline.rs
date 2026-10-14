@@ -45,6 +45,8 @@ pub struct PipelineResult {
     pub receipt_summary: Option<String>,
     #[serde(default)]
     pub tuple_settled: bool,
+    #[serde(default)]
+    pub log_path: Option<PathBuf>,
 }
 
 fn extract_tuple_id(text: &str) -> Option<String> {
@@ -60,17 +62,154 @@ fn extract_tuple_id(text: &str) -> Option<String> {
     None
 }
 
+fn resolve_logs_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".k0maru")
+        .join("logs")
+}
+
+fn resolve_default_receipts_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".k0maru")
+        .join("receipts")
+}
+
+/// Formats a `PipelineResult` into a single-line K-DSL wire summary:
+/// `!Σ:PIPELINE|<task_id>|probe:<OK/FAIL>|exec:<PASS/FAIL/SKIP>|verify:<PASS/FAIL/SKIP>|settled:<bool>|log:<log_path>|receipt:<receipt_summary>`
+pub fn format_wire_summary(res: &PipelineResult) -> String {
+    let probe_str = if res.probe_passed { "OK" } else { "FAIL" };
+    let exec_str = match res.exec_passed {
+        Some(true) => "PASS",
+        Some(false) => "FAIL",
+        None => "SKIP",
+    };
+    let verify_str = if res.verified {
+        "PASS"
+    } else if res.receipt_summary.is_some() {
+        "FAIL"
+    } else {
+        "SKIP"
+    };
+    let log_str = res
+        .log_path
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "NONE".to_string());
+    let receipt_str = res
+        .receipt_summary
+        .as_deref()
+        .unwrap_or("NONE")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('|', "/");
+
+    format!(
+        "!Σ:PIPELINE|{}|probe:{}|exec:{}|verify:{}|settled:{}|log:{}|receipt:{}",
+        res.task_id, probe_str, exec_str, verify_str, res.tuple_settled, log_str, receipt_str
+    )
+}
+
+/// Reads `<receipts_dir_or_~/.k0maru/receipts>/<task_id>.json` and formats a compact (<160 chars)
+/// single-line K-DSL wire summary:
+/// `!Σ:RECEIPT|<task_id>|status:<PASS/FAIL>|red_check:<status>|commit:<git_commit>|sig:<short_sha256>`
+pub fn inspect_receipt_wire(
+    task_id: &str,
+    receipts_dir: Option<&Path>,
+) -> Result<String, HarnessError> {
+    let base_dir = receipts_dir
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(resolve_default_receipts_dir);
+    let clean_id = task_id.trim_end_matches(".json");
+    let receipt_path = base_dir.join(format!("{}.json", clean_id));
+
+    let raw = std::fs::read_to_string(&receipt_path)?;
+    let json: serde_json::Value = serde_json::from_str(&raw)?;
+
+    let resolved_task_id = json
+        .get("task_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or(clean_id);
+
+    let raw_status = json
+        .get("status")
+        .or_else(|| json.get("verdict"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("FAIL");
+    let test_exit_code = json
+        .pointer("/checks/test/exit_code")
+        .or_else(|| json.pointer("/checks/tests/exit_code"))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+
+    let status_pass = matches!(
+        raw_status.to_ascii_lowercase().as_str(),
+        "pass" | "passed" | "success" | "ok"
+    ) && test_exit_code == 0;
+    let status_str = if status_pass { "PASS" } else { "FAIL" };
+
+    let red_check_raw = json
+        .pointer("/checks/red_check/status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("SKIP");
+    let red_check_str = match red_check_raw.to_ascii_lowercase().as_str() {
+        "pass" | "passed" | "success" | "ok" => "PASS".to_string(),
+        "fail" | "failed" | "error" => "FAIL".to_string(),
+        "skip" | "skipped" | "none" => "SKIP".to_string(),
+        other => other.to_ascii_uppercase(),
+    };
+
+    let commit_raw = json
+        .get("git_commit")
+        .or_else(|| json.pointer("/artifacts/git_commit"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("HEAD");
+    let commit_short: String = commit_raw.chars().take(12).collect();
+
+    let sig_raw = json
+        .get("signature_sha256")
+        .or_else(|| json.pointer("/artifacts/signature_sha256"))
+        .or_else(|| json.pointer("/artifacts/git_patch_sha256"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("none");
+    let short_sig: String = sig_raw.chars().take(12).collect();
+
+    Ok(format!(
+        "!Σ:RECEIPT|{}|status:{}|red_check:{}|commit:{}|sig:{}",
+        resolved_task_id, status_str, red_check_str, commit_short, short_sig
+    ))
+}
+
 /// Runs a task through the complete end-to-end K0maru harness pipeline:
 ///
 /// 1. Probes component availability across the 4 decoupled micro-kernels.
 /// 2. Performs JIT invariant activation via cognitive memory hub (<180 tokens).
 /// 3. Emits `TASK_READY` Linda tuple via `k0maru-router` (or gracefully degrades if unavailable).
-/// 4. Optionally executes `opts.exec_cmd` via `sh -c` in `workspace_path` with JIT env vars.
-/// 5. If `opts.verify` is true, executes deterministic physical verification via `k0maru-verifier`.
+/// 4. Optionally executes `opts.exec_cmd` via `sh -c` in `workspace_path` with JIT env vars, sinking stdout/stderr to `~/.k0maru/logs/<task_id>.log`.
+/// 5. If `opts.verify` is true, executes deterministic physical verification via `k0maru-verifier`, sinking stdout/stderr to `~/.k0maru/logs/<task_id>.log`.
 /// 6. If `verified` is true and `k0maru-router` is available, emits `TASK_COMPLETED` settlement tuple.
 pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessError> {
-    let task_id = format!("TASK-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let now = chrono::Utc::now();
+    let task_id = format!(
+        "TASK-{}-{:03}-{}",
+        now.format("%Y%m%d%H%M%S"),
+        now.timestamp_subsec_millis(),
+        seq
+    );
     let workspace_path = opts.workspace.as_deref().unwrap_or_else(|| Path::new("."));
+
+    // Prepare Pre-Stdout Log Sink (`~/.k0maru/logs/<task_id>.log`)
+    let logs_dir = resolve_logs_dir();
+    let _ = std::fs::create_dir_all(&logs_dir);
+    let log_file_path = logs_dir.join(format!("{}.log", task_id));
+    let mut log_buffer = format!(
+        "=== [K0maru-Harness Pre-Stdout Log Sink] task_id={} domain={} ===\n",
+        task_id, opts.domain
+    );
 
     // Phase 1: Probe component readiness
     let probe_report = crate::probe::ComponentProbe::run_full_probe();
@@ -79,6 +218,10 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
     // Phase 2: JIT Invariant Activation
     let jit_res = crate::memory::jit_activate(&opts.task, 3, None)?;
     let jit_invariants = jit_res.formatted_prompt;
+    log_buffer.push_str(&format!(
+        "\n--- [Phase 2: JIT Invariants] ---\n{}\n",
+        jit_invariants
+    ));
 
     // Phase 3: Linda Space Task Ready Tuple Emission & Multiplexer Pane Probe (`--driver auto`)
     let router_bin_opt = crate::probe::find_binary("k0maru-router");
@@ -149,8 +292,9 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
         None
     };
 
-    // Phase 3.5: Optional Command Execution (`--exec <CMD>`)
+    // Phase 3.5: Optional Command Execution (`--exec <CMD>`) — Sunk to log_buffer
     let exec_passed = if let Some(ref cmd_str) = opts.exec_cmd {
+        log_buffer.push_str(&format!("\n--- [Phase 3.5: Exec '{}'] ---\n", cmd_str));
         let output = Command::new("sh")
             .arg("-c")
             .arg(cmd_str)
@@ -160,16 +304,24 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
             .output();
 
         match output {
-            Ok(out) => Some(out.status.success()),
-            Err(_) => Some(false),
+            Ok(out) => {
+                log_buffer.push_str(&String::from_utf8_lossy(&out.stdout));
+                log_buffer.push_str(&String::from_utf8_lossy(&out.stderr));
+                Some(out.status.success())
+            }
+            Err(e) => {
+                log_buffer.push_str(&format!("Exec error: {}\n", e));
+                Some(false)
+            }
         }
     } else {
         None
     };
 
-    // Phase 4: Deterministic Physical Verification Gate
+    // Phase 4: Deterministic Physical Verification Gate — Sunk to log_buffer
     let (verified, receipt_summary) = if opts.verify {
         if let Some(verifier_bin) = crate::probe::find_binary("k0maru-verifier") {
+            log_buffer.push_str("\n--- [Phase 4: k0maru-verifier] ---\n");
             let mut cmd = Command::new(&verifier_bin);
             cmd.arg("verify")
                 .arg("--task-id")
@@ -184,6 +336,8 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
 
             match cmd.output() {
                 Ok(out) => {
+                    log_buffer.push_str(&String::from_utf8_lossy(&out.stdout));
+                    log_buffer.push_str(&String::from_utf8_lossy(&out.stderr));
                     let success = out.status.success();
                     let summary = if let Ok(json) =
                         serde_json::from_slice::<serde_json::Value>(&out.stdout)
@@ -226,13 +380,22 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
                     };
                     (success, Some(summary))
                 }
-                Err(e) => (false, Some(format!("Failed to execute verifier: {}", e))),
+                Err(e) => {
+                    log_buffer.push_str(&format!("Failed to execute verifier: {}\n", e));
+                    (false, Some(format!("Failed to execute verifier: {}", e)))
+                }
             }
         } else {
             (false, Some("k0maru-verifier binary not found".to_string()))
         }
     } else {
         (false, None)
+    };
+
+    let log_path = if std::fs::write(&log_file_path, &log_buffer).is_ok() {
+        Some(log_file_path)
+    } else {
+        None
     };
 
     // Phase 5: Linda Tuple Settlement (`TASK_COMPLETED`) when verified
@@ -244,6 +407,7 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
                 "verified": verified,
                 "exec_passed": exec_passed,
                 "receipt_summary": receipt_summary,
+                "log_path": log_path,
             });
             let out = Command::new(router_bin)
                 .arg("tuple")
@@ -275,6 +439,7 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
         verified,
         receipt_summary,
         tuple_settled,
+        log_path,
     })
 }
 
