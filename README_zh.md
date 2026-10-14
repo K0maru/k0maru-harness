@@ -196,9 +196,15 @@ k0maru-harness run "实现 JWT 用户鉴权逻辑" \
 ═══════════════════════════════════════════════════════════════════
 ```
 
-支持机器可读的 JSON 结构化输出：
+支持机器可读的 JSON 结构化输出与单行 K-DSL 机器电报输出（`--wire`，子进程长日志自动沉淀至 `~/.k0maru/logs/<task_id>.log`）：
 ```bash
 k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV --json
+k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV --wire
+# !Σ:PIPELINE|TASK-20261014055930-001-0|probe:OK|exec:PASS|verify:PASS|settled:true|log:~/.k0maru/logs/...|receipt:...
+
+# 以紧凑 K-DSL 机器电报格式（<160 字符）检视物理验收收据
+k0maru-harness receipt TICK-005
+# !Σ:RECEIPT|TICK-005|status:PASS|red_check:PASS|commit:HEAD|sig:e3b0c44298fc
 ```
 
 ---
