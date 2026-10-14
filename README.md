@@ -89,7 +89,7 @@ cp target/release/k0maru-harness ~/.local/bin/
 Verify installation:
 ```bash
 k0maru-harness --version
-# Output: k0maru 0.1.0
+# Output: k0maru-harness 0.1.0
 ```
 
 ---
@@ -107,7 +107,7 @@ k0maru-harness probe
 ```text
 🔍 [K0maru-Harness] Component & Bus Readiness Probe
 ═══════════════════════════════════════════════════════════════════
-  Timestamp: 2026-10-13T09:31:46.879454+00:00
+  Timestamp: 2026-10-14T04:12:49.623945+00:00
 
 📦 Decoupled Micro-Kernels (Pillars):
   ✅ Router     [REQUIRED] ~/.local/bin/k0maru-router     -> k0maru-router 0.1.0
@@ -130,9 +130,10 @@ k0maru-harness probe --json
 
 ---
 
-### 2. JIT Experience & Invariant Activation (`k0maru-harness memory jit`)
+### 2. JIT Experience Activation & Seen-3× Lesson Engine (`k0maru-harness memory`)
 
-Retrieves relevant constraints, ADR invariants, or testing guidelines for a specific decision point (e.g. `git branching`, `sqlite lock`, `api pagination`) and formats them into a compact, high-density prompt fragment (<180 tokens):
+#### Namespace-Isolated JIT Recall (`memory jit`)
+Retrieves relevant constraints, ADR invariants, or `LESSONS.md` entries for a specific decision point while strictly filtering out noise namespaces (`30_Resources/`, `00_Daily/`, `01_AI_Logs/`, `Archive_Legacy/`), formatting them into a compact prompt fragment (<180 tokens):
 
 ```bash
 k0maru-harness memory jit --decision "git branching"
@@ -140,8 +141,9 @@ k0maru-harness memory jit --decision "git branching"
 
 ```markdown
 ### 🧠 [JIT Invariant Activation: git branching]
-- [[30_Resources/lancedb-docs/02_Core_Capabilities_and_Guides/03_branching_tagging_and_time_travel.md]] (🌿 Git 级表分支、标签与时间旅行): # 🌿 Git 级表分支、标签与时间旅行 在传统生产数据库中，对线上千万级数据集执行复杂的实验性写入...
-- [[30_Resources/lancedb-docs/01_Overview_and_Quickstart/03_lance_columnar_format_and_storage.md]] (🧬 Lance 列式存储格式规范与零拷贝演进): ...擎 | **零拷贝追加 (Zero-Copy Column Addition)** | | **就地原地更新与分支** | 写放大严重 | 支持 Row-level Delete/Merge | **Git 级表分支 (Table Branching) 与快照** | ...
+- [[LESSONS.md]] (2. 生产发布流水线严禁开启取消进行中任务 (cancel-in-progress)): **做对的标准 (Done right)**：打 Tag 之前，对应的 Commit CI 必须全量跑完且全绿，被后续推送抢占中断的测试结果一律作废。
+- [[LESSONS.md]] (4. 严禁在多智能体自主协作体系中使用 Git Submodules): **做对的标准 (Done right)**：跨组件通过 POSIX 进程调用、Exit Code 与 Linda 状态空间解耦协调。
+- [[LESSONS.md]] (5. 严禁向智能体长上下文暴力倾倒前置大文档 (Relevance != Applicability)): **做对的标准 (Done right)**：平时保持 Prompt 极简，仅在特定的决策点（如 Git 分支、锁、数据库调优）调用 `k0maru-harness memory jit` 提取 <180 Token 的纯粹状态约束。
 ```
 
 Machine-readable structured JSON:
@@ -149,33 +151,48 @@ Machine-readable structured JSON:
 k0maru-harness memory jit --decision "git branching" --limit 2 --json
 ```
 
+#### Dynamic Error Notebook & Seen-3× Promotion (`memory record-lesson`)
+Records or increments empirical agent failure lessons in `LESSONS.md`. When a lesson reaches `Seen 3×`, it is automatically promoted to `**[PROMOTED TO LIVING ADR]**`:
+
+```bash
+k0maru-harness memory record-lesson \
+  --title "跨工作区任务派发必须优先探测并路由至 Herdr 活跃窗格而非原地派生" \
+  --cause "主控 Agent 受默认工具惯性影响直接调用宿主内置 subagent" \
+  --standard "跨仓任务一律通过 k0maru-router route / k0maru-harness run 路由至目标仓库驻留的 Herdr 窗格 Agent"
+```
+
 ---
 
 ### 3. Pipeline Runner (`k0maru-harness run`)
 
-Orchestrates a complete task through pre-flight probe, JIT invariant activation, Linda space tuple emission, and physical verification:
+Orchestrates a complete task through pre-flight probe, JIT invariant activation, auto-driver Herdr/tmux pane probing & Linda space tuple emission, optional subprocess execution (`--exec` with `K0MARU_TASK_ID` and `K0MARU_JIT_INVARIANTS` injected), physical verification (`--red-check`), and `TASK_COMPLETED` tuple settlement:
 
 ```bash
 # Standard pipeline run
 k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV
 
-# Execute with Popperian physical falsification (rejects 'fake green' tests)
-k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV --red-check
+# Execute with worker subprocess and Popperian physical falsification
+k0maru-harness run "Implement user authentication with JWT" \
+  --domain AUTH-SRV \
+  --exec "cargo test" \
+  --red-check
 ```
 
 ```text
 🚀 [K0maru-Harness] Task Pipeline Execution
 ═══════════════════════════════════════════════════════════════════
-  Task ID:      TASK-20261013101439
+  Task ID:      TASK-20261014042439
   Task:         Implement user authentication with JWT
   Domain:       AUTH-SRV
   Node:         localhost (local)
   Workspace:    .
 
   🔍 Phase 1: Component Readiness Probe -> [READY]
-  🧠 Phase 2: JIT Invariant Activation  -> Activated (2 lines)
+  🧠 Phase 2: JIT Invariant Activation  -> Activated (4 lines)
   🚌 Phase 3: Linda Space Task Ready     -> [EMITTED] (tup_ccdf3ef16ef3442190d7df5d29cf7247)
-  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 24/24 passed)
+  ⚙️  Phase 3.5: Subprocess Execution    -> [PASSED]
+  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 30/30 passed, red-check: passed)
+  🏁 Phase 5: Linda Space Settlement    -> [SETTLED] (TASK_COMPLETED)
 ═══════════════════════════════════════════════════════════════════
 ```
 

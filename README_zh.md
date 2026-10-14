@@ -89,7 +89,7 @@ cp target/release/k0maru-harness ~/.local/bin/
 验证安装：
 ```bash
 k0maru-harness --version
-# 输出: k0maru 0.1.0
+# 输出: k0maru-harness 0.1.0
 ```
 
 ---
@@ -107,7 +107,7 @@ k0maru-harness probe
 ```text
 🔍 [K0maru-Harness] Component & Bus Readiness Probe
 ═══════════════════════════════════════════════════════════════════
-  Timestamp: 2026-10-13T09:31:46.879454+00:00
+  Timestamp: 2026-10-14T04:12:49.623945+00:00
 
 📦 Decoupled Micro-Kernels (Pillars):
   ✅ Router     [REQUIRED] ~/.local/bin/k0maru-router     -> k0maru-router 0.1.0
@@ -130,9 +130,10 @@ k0maru-harness probe --json
 
 ---
 
-### 2. 状态点 JIT 即时经验与不变量激活 (`k0maru-harness memory jit`)
+### 2. 状态点 JIT 命名空间隔离激活与动态错题本引擎 (`k0maru-harness memory`)
 
-在智能体进入具体决策点时，仅召回针对当前决策点（如 `git branching`, `sqlite lock`, `auth middleware`）最关键的常青卡片与 ADR 不变量约束，输出高度压缩的单行 Markdown 提示词（单次仅约 **174 Tokens**）：
+#### 命名空间严格隔离的 JIT 激活 (`memory jit`)
+在智能体进入具体决策点时，自动过滤掉第三方参考文档与原始日志噪音（`30_Resources/`、`00_Daily/`、`01_AI_Logs/`、`Archive_Legacy/`），严格按优先级检索 `LESSONS.md`、`AGENTS.md`、常青卡片（`20_Cards/`）与项目蓝图（`10_Projects/`），输出高度压缩的单行 Markdown 提示词（<180 Tokens）：
 
 ```bash
 k0maru-harness memory jit --decision "git branching"
@@ -140,8 +141,9 @@ k0maru-harness memory jit --decision "git branching"
 
 ```markdown
 ### 🧠 [JIT Invariant Activation: git branching]
-- [[30_Resources/lancedb-docs/02_Core_Capabilities_and_Guides/03_branching_tagging_and_time_travel.md]] (🌿 Git 级表分支、标签与时间旅行): # 🌿 Git 级表分支、标签与时间旅行 在传统生产数据库中，对线上千万级数据集执行复杂的实验性写入...
-- [[30_Resources/lancedb-docs/01_Overview_and_Quickstart/03_lance_columnar_format_and_storage.md]] (🧬 Lance 列式存储格式规范与零拷贝演进): ...擎 | **零拷贝追加 (Zero-Copy Column Addition)** | | **就地原地更新与分支** | 写放大严重 | 支持 Row-level Delete/Merge | **Git 级表分支 (Table Branching) 与快照** | ...
+- [[LESSONS.md]] (2. 生产发布流水线严禁开启取消进行中任务 (cancel-in-progress)): **做对的标准 (Done right)**：打 Tag 之前，对应的 Commit CI 必须全量跑完且全绿，被后续推送抢占中断的测试结果一律作废。
+- [[LESSONS.md]] (4. 严禁在多智能体自主协作体系中使用 Git Submodules): **做对的标准 (Done right)**：跨组件通过 POSIX 进程调用、Exit Code 与 Linda 状态空间解耦协调。
+- [[LESSONS.md]] (5. 严禁向智能体长上下文暴力倾倒前置大文档 (Relevance != Applicability)): **做对的标准 (Done right)**：平时保持 Prompt 极简，仅在特定的决策点（如 Git 分支、锁、数据库调优）调用 `k0maru-harness memory jit` 提取 <180 Token 的纯粹状态约束。
 ```
 
 获取结构化 JSON 输出：
@@ -149,33 +151,48 @@ k0maru-harness memory jit --decision "git branching"
 k0maru-harness memory jit --decision "git branching" --limit 2 --json
 ```
 
+#### 动态错题本自动记账与“事不过三 (Seen 3×)”升维 (`memory record-lesson`)
+向 `LESSONS.md` 写入或递增偶发失败教训计数；当同一教训累计达 `Seen 3×` 时，自动升格为 `**[PROMOTED TO LIVING ADR]**` 并同步登记至转正硬化规则区：
+
+```bash
+k0maru-harness memory record-lesson \
+  --title "跨工作区任务派发必须优先探测并路由至 Herdr 活跃窗格而非原地派生" \
+  --cause "主控 Agent 受默认工具惯性影响直接调用宿主内置 subagent" \
+  --standard "跨仓任务一律通过 k0maru-router route / k0maru-harness run 路由至目标仓库驻留的 Herdr 窗格 Agent"
+```
+
 ---
 
 ### 3. 一键式任务编排流水线 (`k0maru-harness run`)
 
-将组件探活、JIT 状态激活、Linda 元组广播与物理预言机验收无感串联：
+将组件探活、JIT 状态激活、Herdr/tmux 窗格自动探测与 Linda 元组广播、可选子进程执行（`--exec`，自动注入 `K0MARU_TASK_ID` 与 `K0MARU_JIT_INVARIANTS` 环境变量）、物理预言机验收（`--red-check`）与 `TASK_COMPLETED` 元组结算无感串联：
 
 ```bash
 # 标准任务流水线
 k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV
 
-# 开启波普尔式物理证伪验收（自动拦截假绿测试）
-k0maru-harness run "实现 JWT 用户鉴权逻辑" --domain AUTH-SRV --red-check
+# 携带 Worker 执行命令并开启波普尔式物理证伪验收（自动拦截假绿测试）
+k0maru-harness run "实现 JWT 用户鉴权逻辑" \
+  --domain AUTH-SRV \
+  --exec "cargo test" \
+  --red-check
 ```
 
 ```text
 🚀 [K0maru-Harness] Task Pipeline Execution
 ═══════════════════════════════════════════════════════════════════
-  Task ID:      TASK-20261013101439
+  Task ID:      TASK-20261014042439
   Task:         实现 JWT 用户鉴权逻辑
   Domain:       AUTH-SRV
   Node:         localhost (local)
   Workspace:    .
 
   🔍 Phase 1: Component Readiness Probe -> [READY]
-  🧠 Phase 2: JIT Invariant Activation  -> Activated (2 lines)
+  🧠 Phase 2: JIT Invariant Activation  -> Activated (4 lines)
   🚌 Phase 3: Linda Space Task Ready     -> [EMITTED] (tup_ccdf3ef16ef3442190d7df5d29cf7247)
-  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 24/24 passed)
+  ⚙️  Phase 3.5: Subprocess Execution    -> [PASSED]
+  🛡️  Phase 4: Physical Verification     -> [VERIFIED] (Verdict: success, tests: 30/30 passed, red-check: passed)
+  🏁 Phase 5: Linda Space Settlement    -> [SETTLED] (TASK_COMPLETED)
 ═══════════════════════════════════════════════════════════════════
 ```
 
