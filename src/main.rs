@@ -116,6 +116,16 @@ pub enum Commands {
         #[arg(long, default_value = "e2e-self-test")]
         task_id: String,
     },
+
+    /// Start JSON-RPC 2.0 Stdio MCP server exposing compact K-DSL harness tools
+    Mcp,
+
+    /// Provision local directories, MCP server registrations, and lazy tool schemas
+    Setup {
+        /// Explicit path to SecondBrain vault root
+        #[arg(long)]
+        vault: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -621,5 +631,18 @@ fn main() {
                 }
             }
         }
+        Commands::Mcp => {
+            if let Err(err) = k0maru_harness::mcp::run_mcp_server() {
+                eprintln!("MCP server error: {}", err);
+                std::process::exit(1);
+            }
+        }
+        Commands::Setup { vault } => match k0maru_harness::setup::run_setup(vault.as_deref()) {
+            Ok(wire) => println!("{}", wire),
+            Err(err) => {
+                eprintln!("❌ Setup failed: {}", err);
+                std::process::exit(1);
+            }
+        },
     }
 }
