@@ -196,11 +196,11 @@ k0maru-harness run "Implement user authentication with JWT" \
 ═══════════════════════════════════════════════════════════════════
 ```
 
-Machine-readable JSON and compact single-line K-DSL wire (`--wire`) outputs (verbose child logs are automatically sunk to `~/.k0maru/logs/<task_id>.log`):
+Machine-readable JSON and compact single-line K-DSL wire (`--wire`) outputs (verbose child logs are automatically sunk to `~/.k0maru/logs/<task_id>.log`, and any subprocess or verification failure is automatically recorded into `LESSONS.md` as `|lesson:Seen_Nx`):
 ```bash
 k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV --json
 k0maru-harness run "Implement user authentication with JWT" --domain AUTH-SRV --wire
-# !Σ:PIPELINE|TASK-20261014055930-001-0|probe:OK|exec:PASS|verify:PASS|settled:true|log:~/.k0maru/logs/...|receipt:...
+# !Σ:PIPELINE|TASK-20261014055930-001-0|probe:OK|exec:PASS|verify:PASS|settled:true|log:~/.k0maru/logs/...|receipt:...|lesson:NONE
 
 # Inspect cryptographic execution receipt in compact K-DSL wire format (<160 chars)
 k0maru-harness receipt TICK-005
