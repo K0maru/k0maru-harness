@@ -56,6 +56,10 @@ pub enum Commands {
         #[arg(short, long)]
         exec: Option<String>,
 
+        /// Explicit path to SecondBrain vault root for JIT recall and auto-lesson capture
+        #[arg(long)]
+        vault: Option<std::path::PathBuf>,
+
         /// Run deterministic physical verification gate
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         verify: bool,
@@ -356,6 +360,7 @@ fn main() {
             node,
             workspace,
             exec,
+            vault,
             verify,
             red_check,
             no_verify,
@@ -371,6 +376,7 @@ fn main() {
                 red_check,
                 workspace,
                 exec_cmd: exec,
+                vault,
                 json,
             };
 
@@ -559,6 +565,7 @@ fn main() {
                 red_check: false,
                 workspace: None,
                 exec_cmd: Some("echo e2e-self-test-ok".to_string()),
+                vault: None,
                 json: false,
             };
 

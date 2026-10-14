@@ -15,6 +15,8 @@ pub struct PipelineOptions {
     pub workspace: Option<PathBuf>,
     #[serde(default)]
     pub exec_cmd: Option<String>,
+    #[serde(default)]
+    pub vault: Option<PathBuf>,
     pub json: bool,
 }
 
@@ -28,6 +30,7 @@ impl Default for PipelineOptions {
             red_check: false,
             workspace: None,
             exec_cmd: None,
+            vault: None,
             json: false,
         }
     }
@@ -47,6 +50,8 @@ pub struct PipelineResult {
     pub tuple_settled: bool,
     #[serde(default)]
     pub log_path: Option<PathBuf>,
+    #[serde(default)]
+    pub lesson_recorded: Option<String>,
 }
 
 fn extract_tuple_id(text: &str) -> Option<String> {
@@ -76,8 +81,56 @@ fn resolve_default_receipts_dir() -> PathBuf {
         .join("receipts")
 }
 
+/// Classifies a pipeline failure into `(title, cause, standard)` for automatic `LESSONS.md` recording.
+pub fn classify_pipeline_failure(
+    domain: &str,
+    exec_passed: Option<bool>,
+    verified: bool,
+    receipt_summary: Option<&str>,
+    log_buffer: &str,
+) -> Option<(String, String, String)> {
+    if exec_passed == Some(false) {
+        Some((
+            format!("[{}] 子进程执行失败 (Exec Subprocess Failed)", domain),
+            format!(
+                "Pipeline --exec command exited with non-zero status in domain {}",
+                domain
+            ),
+            "Ensure subprocess command and environment invariants pass before pipeline execution"
+                .to_string(),
+        ))
+    } else if !verified && receipt_summary.is_some() {
+        if receipt_summary.unwrap_or("").contains("red-check: failed")
+            || log_buffer.contains("Popperian falsification failed")
+        {
+            Some((
+                format!(
+                    "[{}] 波普尔反向证伪失败 (Red-Check Falsification Failed)",
+                    domain
+                ),
+                "New or modified tests passed on reverted baseline or contained hollow/tautological assertions"
+                    .to_string(),
+                "Write genuine falsifiable assertions that fail on baseline and pass on new implementation"
+                    .to_string(),
+            ))
+        } else {
+            Some((
+                format!("[{}] 物理预言机验证未通过 (Verifier Gate Blocked)", domain),
+                format!(
+                    "k0maru-verifier blocked task in domain {}: {}",
+                    domain,
+                    receipt_summary.unwrap_or("unknown")
+                ),
+                "Fix compile/clippy/test failures and verify locally before submission".to_string(),
+            ))
+        }
+    } else {
+        None
+    }
+}
+
 /// Formats a `PipelineResult` into a single-line K-DSL wire summary:
-/// `!Σ:PIPELINE|<task_id>|probe:<OK/FAIL>|exec:<PASS/FAIL/SKIP>|verify:<PASS/FAIL/SKIP>|settled:<bool>|log:<log_path>|receipt:<receipt_summary>`
+/// `!Σ:PIPELINE|<task_id>|probe:<OK/FAIL>|exec:<PASS/FAIL/SKIP>|verify:<PASS/FAIL/SKIP>|settled:<bool>|log:<log_path>|receipt:<receipt_summary>|lesson:<NONE_or_lesson_recorded>`
 pub fn format_wire_summary(res: &PipelineResult) -> String {
     let probe_str = if res.probe_passed { "OK" } else { "FAIL" };
     let exec_str = match res.exec_passed {
@@ -105,10 +158,18 @@ pub fn format_wire_summary(res: &PipelineResult) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .replace('|', "/");
+    let lesson_str = res.lesson_recorded.as_deref().unwrap_or("NONE");
 
     format!(
-        "!Σ:PIPELINE|{}|probe:{}|exec:{}|verify:{}|settled:{}|log:{}|receipt:{}",
-        res.task_id, probe_str, exec_str, verify_str, res.tuple_settled, log_str, receipt_str
+        "!Σ:PIPELINE|{}|probe:{}|exec:{}|verify:{}|settled:{}|log:{}|receipt:{}|lesson:{}",
+        res.task_id,
+        probe_str,
+        exec_str,
+        verify_str,
+        res.tuple_settled,
+        log_str,
+        receipt_str,
+        lesson_str
     )
 }
 
@@ -189,7 +250,8 @@ pub fn inspect_receipt_wire(
 /// 3. Emits `TASK_READY` Linda tuple via `k0maru-router` (or gracefully degrades if unavailable).
 /// 4. Optionally executes `opts.exec_cmd` via `sh -c` in `workspace_path` with JIT env vars, sinking stdout/stderr to `~/.k0maru/logs/<task_id>.log`.
 /// 5. If `opts.verify` is true, executes deterministic physical verification via `k0maru-verifier`, sinking stdout/stderr to `~/.k0maru/logs/<task_id>.log`.
-/// 6. If `verified` is true and `k0maru-router` is available, emits `TASK_COMPLETED` settlement tuple.
+/// 6. Automatically captures failure lessons into `LESSONS.md` (`Seen 3×` state machine) when execution or verification fails.
+/// 7. If `verified` is true and `k0maru-router` is available, emits `TASK_COMPLETED` settlement tuple.
 pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessError> {
     static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -216,7 +278,7 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
     let probe_passed = probe_report.ready;
 
     // Phase 2: JIT Invariant Activation
-    let jit_res = crate::memory::jit_activate(&opts.task, 3, None)?;
+    let jit_res = crate::memory::jit_activate(&opts.task, 3, opts.vault.as_deref())?;
     let jit_invariants = jit_res.formatted_prompt;
     log_buffer.push_str(&format!(
         "\n--- [Phase 2: JIT Invariants] ---\n{}\n",
@@ -392,6 +454,34 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
         (false, None)
     };
 
+    // Phase 4.5: Automatic Lesson Capture (`LESSONS.md` Seen-3x Engine) on Failure
+    let mut lesson_recorded = None;
+    if exec_passed == Some(false) || (opts.verify && !verified) {
+        let should_record = opts.vault.is_some()
+            || std::env::var("K0MARU_VAULT_PATH").is_ok()
+            || std::env::var("CARGO").is_err();
+        if should_record {
+            if let Some((title, cause, standard)) = classify_pipeline_failure(
+                &opts.domain,
+                exec_passed,
+                verified,
+                receipt_summary.as_deref(),
+                &log_buffer,
+            ) {
+                if let Ok(rec) =
+                    crate::memory::record_lesson(opts.vault.as_deref(), &title, &cause, &standard)
+                {
+                    let badge = format!("Seen_{}x(promoted:{})", rec.count, rec.promoted);
+                    log_buffer.push_str(&format!(
+                        "\n--- [Phase 4.5: Auto Lesson Recorded] {} -> {} ---\n",
+                        rec.title, badge
+                    ));
+                    lesson_recorded = Some(badge);
+                }
+            }
+        }
+    }
+
     let log_path = if std::fs::write(&log_file_path, &log_buffer).is_ok() {
         Some(log_file_path)
     } else {
@@ -408,6 +498,7 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
                 "exec_passed": exec_passed,
                 "receipt_summary": receipt_summary,
                 "log_path": log_path,
+                "lesson_recorded": lesson_recorded,
             });
             let out = Command::new(router_bin)
                 .arg("tuple")
@@ -440,6 +531,7 @@ pub fn run_pipeline(opts: &PipelineOptions) -> Result<PipelineResult, HarnessErr
         receipt_summary,
         tuple_settled,
         log_path,
+        lesson_recorded,
     })
 }
 
@@ -453,6 +545,7 @@ mod tests {
         assert_eq!(opts.domain, "DEFAULT");
         assert!(opts.verify);
         assert!(opts.exec_cmd.is_none());
+        assert!(opts.vault.is_none());
         assert!(!opts.json);
     }
 
@@ -474,6 +567,7 @@ mod tests {
             red_check: false,
             workspace: None,
             exec_cmd: None,
+            vault: None,
             json: false,
         };
         let res = run_pipeline(&opts);
@@ -485,6 +579,7 @@ mod tests {
         assert!(!result.verified);
         assert!(!result.tuple_settled);
         assert_eq!(result.receipt_summary, None);
+        assert_eq!(result.lesson_recorded, None);
 
         if result.tuple_id.is_some() {
             let _ = Command::new("k0maru-router")
@@ -510,6 +605,7 @@ mod tests {
             red_check: false,
             workspace: None,
             exec_cmd: Some("echo hello".to_string()),
+            vault: None,
             json: false,
         };
         let res = run_pipeline(&opts).expect("run_pipeline with exec_cmd should succeed");

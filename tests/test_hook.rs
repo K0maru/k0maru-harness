@@ -26,6 +26,7 @@ fn test_install_pre_commit_hook_temp_repo() {
     assert_eq!(content, PRE_COMMIT_HOOK_CONTENT);
     assert!(content.contains("cargo fmt --all --check"));
     assert!(content.contains("k0maru guard check --diff"));
+    assert!(content.contains("k0maru-harness memory record-lesson"));
 
     #[cfg(unix)]
     {

@@ -9,12 +9,18 @@ echo "🛡️  [K0maru-Harness] Running pre-commit physical gate..."
 if [ -f "Cargo.toml" ]; then
     if ! cargo fmt --all --check >/dev/null 2>&1; then
         echo "❌ [Pre-Commit Denied]: Rust code formatting failed! Run 'cargo fmt'." >&2
+        if command -v k0maru-harness >/dev/null 2>&1; then
+            k0maru-harness memory record-lesson --title "[Pre-Commit] Rust 代码未格式化 (cargo fmt check failed)" --cause "提交前未执行 cargo fmt 导致格式门禁阻断" --standard "提交前必须执行 cargo fmt --all 确保零格式差异" >/dev/null 2>&1 || true
+        fi
         exit 1
     fi
 fi
 if command -v k0maru >/dev/null 2>&1; then
     if ! k0maru guard check --diff >/dev/null 2>&1; then
         echo "❌ [Pre-Commit Denied]: Living ADR invariant violation! Run 'k0maru-harness memory jit --decision \"<topic>\"'." >&2
+        if command -v k0maru-harness >/dev/null 2>&1; then
+            k0maru-harness memory record-lesson --title "[Pre-Commit] 违反 Living ADR 架构守卫 (k0maru guard check failed)" --cause "增量代码触发 Living ADR 架构不变量阻断" --standard "修改代码前通过 k0maru-harness memory jit 激活不变量并修复所有 guard 违规" >/dev/null 2>&1 || true
+        fi
         exit 1
     fi
 fi

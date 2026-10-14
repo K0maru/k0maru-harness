@@ -11,6 +11,7 @@ pub use memory::{
     JitActivationResult, JitHit, LessonRecordResult,
 };
 pub use pipeline::{
-    format_wire_summary, inspect_receipt_wire, run_pipeline, PipelineOptions, PipelineResult,
+    classify_pipeline_failure, format_wire_summary, inspect_receipt_wire, run_pipeline,
+    PipelineOptions, PipelineResult,
 };
 pub use probe::{find_binary, ComponentProbe, ComponentStatus, HarnessHealthReport};
