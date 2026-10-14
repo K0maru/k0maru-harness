@@ -81,27 +81,32 @@ provision_local() {
     fi
   done
 
-  echo "=== [2/4] Running Deterministic Harness Setup (MCP & Schemas) ==="
+  echo "=== [2/5] Synchronizing Agent Skills (k0maru-skills) ==="
+  if [[ -x "$WORKSPACE_ROOT/k0maru-skills/scripts/sync.sh" ]]; then
+    "$WORKSPACE_ROOT/k0maru-skills/scripts/sync.sh" >/dev/null
+  fi
+
+  echo "=== [3/5] Running Deterministic Harness Setup (MCP & Schemas) ==="
   k0maru-harness setup --vault "$VAULT_PATH"
 
-  echo "=== [3/4] Synchronizing SecondBrain Cognitive Vault ==="
+  echo "=== [4/5] Synchronizing SecondBrain Cognitive Vault ==="
   if [[ -d "$VAULT_PATH" ]] && command -v k0maru >/dev/null 2>&1; then
     k0maru sync -v "$VAULT_PATH" || true
     (cd "$VAULT_PATH" && k0maru-harness init-hook >/dev/null 2>&1 || true)
   fi
 
-  echo "=== [4/4] Running Final Readiness Probe ==="
+  echo "=== [5/5] Running Final Readiness Probe ==="
   k0maru-harness probe
 }
 
 if [[ -z "$REMOTE_HOST" ]]; then
   provision_local
 else
-  echo "=== Syncing K0maru Repositories, Vault & Agy Customizations to $REMOTE_HOST ==="
+  echo "=== Syncing K0maru Repositories, Skills, Vault & Agy Customizations to $REMOTE_HOST ==="
   REMOTE_HOME="$(ssh "$REMOTE_HOST" 'printf %s "$HOME"')"
   ssh "$REMOTE_HOST" "mkdir -p '$REMOTE_HOME/workspace' '$REMOTE_HOME/Documents' '$REMOTE_HOME/.gemini/config/skills' '$REMOTE_HOME/.gemini/antigravity-cli/skills'"
 
-  for repo in k0maru-harness k0maru-agent-verifier k0maru-agent-router k0maru-agent-workspace k0maru-agent-memory; do
+  for repo in k0maru-harness k0maru-agent-verifier k0maru-agent-router k0maru-agent-workspace k0maru-agent-memory k0maru-skills; do
     if [[ -d "$WORKSPACE_ROOT/$repo" ]]; then
       echo "  -> Syncing $repo to $REMOTE_HOST..."
       rsync -az --exclude 'target' "$WORKSPACE_ROOT/$repo/" "$REMOTE_HOST:$REMOTE_HOME/workspace/$repo/"
@@ -117,10 +122,6 @@ else
   if [[ -f "$HOME/.gemini/config/GEMINI.md" ]]; then
     rsync -az "$HOME/.gemini/config/GEMINI.md" "$REMOTE_HOST:$REMOTE_HOME/.gemini/config/GEMINI.md"
     rsync -az "$HOME/.gemini/config/GEMINI.md" "$REMOTE_HOST:$REMOTE_HOME/.gemini/GEMINI.md"
-  fi
-  if [[ -d "$HOME/.gemini/config/skills" ]]; then
-    rsync -az "$HOME/.gemini/config/skills/" "$REMOTE_HOST:$REMOTE_HOME/.gemini/config/skills/"
-    rsync -az "$HOME/.gemini/config/skills/" "$REMOTE_HOST:$REMOTE_HOME/.gemini/antigravity-cli/skills/"
   fi
 
   echo "=== Executing Remote Provisioning on $REMOTE_HOST ==="
