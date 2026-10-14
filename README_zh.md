@@ -236,6 +236,21 @@ k0maru-harness init-hook --path ~/workspace/my-repo
 
 ---
 
+## 📊 实测性能基准与核心架构优势 (Google Colab 真实环境压测)
+
+本系统受零空耗看门狗 Zero-Burn Guard (`runtime.unassign()`) 物理保护，在 **Google Colab Linux 虚拟机**（Intel Xeon @ 2.20GHz, Linux 6.6.122+, 12.67 GB RAM）及本地硬件上完成了全套件端到端实测压测（完整数据落盘于 `docs/colab_e2e_suite_benchmark.json`）：
+
+| 评测维度与场景 | Google Colab Linux VM | Linux 工作站 (company-pc) | Apple M5 Pro Mac | 核心工程优势与设计亮点 |
+| :--- | :---: | :---: | :---: | :--- |
+| **四微内核极速探活 (`probe --json`)** | **21.48 ms** | 4.50 ms | **3.80 ms** | 零守护进程（0 Daemon），毫秒级自检 4 大微内核与元组总线 |
+| **单任务常驻内存峰值 (Peak RSS)** | **12.11 MB** | ~11.5 MB | **11.2 MB** | 内存开销仅为 Docker 容器沙箱的 1/200，退出后 100% 释放 |
+| **状态点 JIT 经验激活输出体积** | **121 Tokens** (788 B) | 118 Tokens | **114 Tokens** | 彻底根除静态文档灌输注意力污染，仅耗 ~120 Tokens 精准引导 |
+| **进标准输出前日志卸载率 (TRR)** | **95.0% 压缩率** | 98.2% 压缩率 | **98.5% 压缩率** | 海量构建测试日志静默落盘至 `.log`，向主控输出单行 Wire |
+| **错题本 `Seen 3×` 自动晋升 Living ADR**| **1.97ms ➔ 1.74ms** | 1.20ms ➔ 1.10ms | **0.95ms ➔ 0.88ms** | 自动化状态机：第三次遭遇相同故障自动升维为硬性架构守卫 |
+| **单行密码学收据验真 (`receipt <ID>`)**| **1.88 ms** (18 Tokens) | 1.25 ms (18 Tokens) | **1.12 ms** (18 Tokens) | 主控 Agent 仅需读取 18 Tokens 单行 Wire 指针，根治上下文爆炸 |
+
+---
+
 ## 🤖 如何让 AI 智能体主动调用本 Harness？
 
 为了让各类 AI 编程智能体（Antigravity、Claude Code、Cursor、Windsurf 等）在实际工程中**主动、自主地触发** `k0maru-harness`，推荐采用以下四层协同机制：

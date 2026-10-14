@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "platform": "Google Colab Linux VM",
+    "timestamp_utc": "2026-10-14T10:05:06Z",
+    "kernel": "6.6.122+",
+    "arch": "x86_64",
+    "cpu_model": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+    "cpu_cores": 2,
+    "ram_total_kb": 13286944,
+    "ram_available_kb": 12271828,
+    "ram_total_gb": 12.67
+  },
+  "comparison_baselines": {
+    "apple_silicon_mac": {
+      "chip": "Apple M5 Pro",
+      "os": "macOS 27.0 (Darwin)",
+      "ram_gb": 24,
+      "harness_probe_ms": 3.8,
+      "verifier_receipt_ms": 14.2,
+      "router_tuple_roundtrip_ms": 1.9,
+      "workspace_create_ms": 4.1,
+      "memory_sync_ms": 9.5
+    },
+    "linux_company_pc": {
+      "chip": "Intel(R) Core(TM) Ultra 5 225 (10 cores)",
+      "os": "Ubuntu 24.04 LTS (Linux 7.0.0-28)",
+      "ram_gb": 16,
+      "harness_probe_ms": 4.5,
+      "verifier_receipt_ms": 18.0,
+      "router_tuple_roundtrip_ms": 2.4,
+      "workspace_create_ms": 5.2,
+      "memory_sync_ms": 12.1
+    }
+  },
+  "modules": {
+    "k0maru_harness": {
+      "check_latency_ms": 21.48,
+      "check_rss_kb": 12400,
+      "check_rss_mb": 12.11,
+      "memory_jit_latency_ms": 2955.92,
+      "memory_jit_output_bytes": 788,
+      "memory_jit_tokens": 121,
+      "full_vault_tokens_baseline": 143,
+      "token_reduction_rate_pct": 15.38,
+      "seen_promotion_latencies_ms": [
+        1.97,
+        1.67,
+        1.74
+      ],
+      "seen_auto_promotion_confirmed": true,
+      "run_wire_execution_latency_ms": 5040.38,
+      "wire_line_bytes": 210,
+      "offloaded_log_bytes": 1995,
+      "pre_stdout_log_sink_compression_pct": 95.0,
+      "receipt_wire_verification_latency_ms": 1.88,
+      "receipt_wire_tokens": 18,
+      "receipt_wire_sample": "!\u03a3:RECEIPT|TASK-20261014100510-041-0|status:FAIL|red_check:SKIP|commit:HEAD|sig:e3b0c44298fc"
+    },
+    "k0maru_verifier": {
+      "fake_green_interception_rate_pct": 100.0,
+      "fake_green_detection_latency_ms": 4075.07,
+      "genuine_falsification_latency_ms": 4735.76,
+      "falsification_passed": true,
+      "sha256_signing_latency_ms": 0.04,
+      "sample_receipt_sha256": "22f66de9de7dc68f93a6d4246ebe1a2c157a98c45efebb429b3252e98246e7f7",
+      "anti_masquerade_guarantee": "Popperian Physical Falsification (Revert Prod -> Run Tests on Baseline -> Assert Failure)"
+    },
+    "k0maru_router": {
+      "kdsl_encode_latency_ms": 3.29,
+      "kdsl_decode_latency_ms": 4.05,
+      "kdsl_wire_tokens": 42,
+      "natural_language_tokens_baseline": 90,
+      "kdsl_token_reduction_rate_pct": 53.33,
+      "tuple_out_latency_ms": 3.34,
+      "tuple_rd_latency_ms": 3.19,
+      "tuple_in_latency_ms": 3.28,
+      "tuple_roundtrip_latency_ms": 9.81,
+      "probe_driver_auto_latency_ms": 10.27
+    },
+    "k0maru_workspace": {
+      "worktree_create_latency_ms": 34.28,
+      "worktree_list_latency_ms": 6.14,
+      "worktree_teardown_latency_ms": 13.35,
+      "worktree_lifecycle_roundtrip_ms": 47.62,
+      "worktree_disk_overhead_kb": 8,
+      "docker_container_cold_start_baseline_ms": 3200,
+      "git_clone_full_overhead_baseline_ms": 850,
+      "speedup_vs_docker": 67.2,
+      "speedup_vs_git_clone": 17.8
+    },
+    "k0maru_memory": {
+      "sync_latency_ms": 34.48,
+      "search_latency_ms": 495.04,
+      "guard_check_diff_latency_ms": 17.4,
+      "full_markdown_chunk_bytes": 611,
+      "full_markdown_chunk_tokens": 112,
+      "compact_mu_wire_bytes": 164,
+      "compact_mu_wire_tokens": 22,
+      "compact_mu_token_reduction_pct": 73.16,
+      "compact_mu_wire_sample": "!\u03bc:L3|20_Cards/git-worktree-isolation.md|score:0.9412|links:2/1 \u00a7 Always use isolated worktrees for agent tasks. ADR-004: All agent branches must branch from main"
+    }
+  }
+}
