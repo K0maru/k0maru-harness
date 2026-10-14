@@ -75,15 +75,28 @@ flowchart TD
 
 ## 🚀 快速上手
 
-### 环境安装
+完整的人类日常研发标准 SOP 与排障手册请参阅 **[QUICKSTART.md](QUICKSTART.md)**。
+
+### 环境安装与一键全栈装配
 
 要求 **Rust 1.75+**：
 
 ```bash
 git clone https://github.com/K0maru/k0maru-harness.git
 cd k0maru-harness
-cargo build --release
-cp target/release/k0maru-harness ~/.local/bin/
+
+# 1. 本地全量编译安装五大微内核、自动签名、注册 MCP 并同步 SecondBrain：
+./scripts/install.sh
+
+# 2. 跨机（Tailscale / SSH）一键同步五大微内核、知识库、Skills 与 MCP 至远端节点：
+./scripts/install.sh --remote company-pc
+
+# 3. 确定性目录与 MCP 装配（创建 ~/.k0maru/{tuples,receipts,logs}、幂等更新 mcp_config.json 并生成 5 个懒加载工具 Schema）：
+k0maru-harness setup
+# 输出: !Σ:SETUP|mcp_config:UPDATED|schemas:5|dirs:OK|probe:READY
+
+# 4. 启动 JSON-RPC 2.0 Stdio MCP 服务端（由 Antigravity / Claude Code 自动拉起）：
+k0maru-harness mcp
 ```
 
 验证安装：

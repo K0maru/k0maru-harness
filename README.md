@@ -75,15 +75,28 @@ flowchart TD
 
 ## 🚀 Quickstart
 
-### Installation
+For the complete daily SOP and troubleshooting handbook, see **[QUICKSTART.md](QUICKSTART.md)**.
+
+### Installation & One-Command Provisioning
 
 Requires **Rust 1.75+**:
 
 ```bash
 git clone https://github.com/K0maru/k0maru-harness.git
 cd k0maru-harness
-cargo build --release
-cp target/release/k0maru-harness ~/.local/bin/
+
+# 1. Build, install & codesign all 5 K0maru micro-kernels, register MCP servers & sync SecondBrain:
+./scripts/install.sh
+
+# 2. Or sync & provision a remote Linux/macOS host over Tailscale/SSH in one command:
+./scripts/install.sh --remote company-pc
+
+# 3. Deterministic MCP & directory setup (creates ~/.k0maru/{tuples,receipts,logs}, updates mcp_config.json & writes 5 lazy tool schemas):
+k0maru-harness setup
+# Output: !Σ:SETUP|mcp_config:UPDATED|schemas:5|dirs:OK|probe:READY
+
+# 4. Run JSON-RPC 2.0 Stdio MCP server (invoked automatically by Antigravity / Claude Code):
+k0maru-harness mcp
 ```
 
 Verify installation:
